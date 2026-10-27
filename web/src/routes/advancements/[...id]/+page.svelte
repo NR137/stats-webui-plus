@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { pageTitleTag } from '$lib/branding.svelte';
 	import { page } from '$app/state';
 	import { advancementDescription, advancementTitle } from '$lib/advancements';
 	import { getAdvancement, getAdvancementMost } from '$lib/api';
@@ -87,14 +88,14 @@
 </svelte:head>
 
 <BackNav />
-<h1>
+<svelte:element this={pageTitleTag()} class="page-title">
 	{#if most}
 		<McItem id="minecraft:experience_bottle" />
 	{:else if detail}
 		<McItem id={detail.icon} />
 	{/if}
 	{heading}
-</h1>
+</svelte:element>
 <p class="lead">
 	{#if most}
 		{t('advancements.mostLead')}
@@ -140,7 +141,9 @@
 {/if}
 
 <style>
-	h1 {
+	.page-title {
+		/* Same look whether this is the page's h1 or an h2 below the site heading. */
+		font-size: 2rem;
 		display: flex;
 		align-items: center;
 		justify-content: center;

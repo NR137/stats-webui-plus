@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { pageTitleTag } from '$lib/branding.svelte';
 	import { page } from '$app/state';
 	import BackNav from '$lib/components/BackNav.svelte';
 	import HomePodium from '$lib/components/HomePodium.svelte';
@@ -90,12 +91,12 @@
 </svelte:head>
 
 <BackNav />
-<h1>
+<svelte:element this={pageTitleTag()} class="page-title">
 	{#if icon}
 		<McItem id={icon} />
 	{/if}
 	{heading}
-</h1>
+</svelte:element>
 <p class="lead">
 	{categoryLabel}{#if unitLabel}
 		{' · '}
@@ -139,7 +140,9 @@
 {/if}
 
 <style>
-	h1 {
+	.page-title {
+		/* Same look whether this is the page's h1 or an h2 below the site heading. */
+		font-size: 2rem;
 		display: flex;
 		align-items: center;
 		justify-content: center;

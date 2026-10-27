@@ -1,9 +1,10 @@
-export const locales = ['es', 'en', 'fr'] as const;
+export const locales = ['es', 'en', 'fr', 'de'] as const;
 
 export type Locale = (typeof locales)[number];
 
-export const STORAGE_KEY = 'mc-stats-locale';
+// Only a language the visitor picked in the switcher is saved here.
+export const STORAGE_KEY = 'mc-stats-locale-choice';
 
 export function isLocale(value: string | null | undefined): value is Locale {
-	return value === 'es' || value === 'en' || value === 'fr';
+	return (locales as readonly string[]).includes(value ?? '');
 }

@@ -1,13 +1,29 @@
 pluginManagement {
 	repositories {
-		maven {
-			name = 'Fabric'
-			url = 'https://maven.fabricmc.net/'
-		}
-		mavenCentral()
 		gradlePluginPortal()
+		mavenCentral()
+		exclusiveContent {
+			forRepository {
+				maven {
+					name = 'Fabric'
+					url = uri('https://maven.fabricmc.net')
+				}
+			}
+			filter {
+				includeGroupAndSubgroups('net.fabricmc')
+			}
+		}
 	}
 }
 
-// Should match your modid
-rootProject.name = 'mc-stats-webui'
+plugins {
+	// Lets Gradle download a matching JDK if no local Java 25 is found.
+	id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+}
+
+rootProject.name = 'stats-webui-plus'
+// Shared build scripts used by the subprojects (build-logic/src/main/groovy)
+includeBuild('build-logic')
+include('common')
+include('fabric')
+include('neoforge')

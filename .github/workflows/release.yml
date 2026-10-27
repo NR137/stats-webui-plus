@@ -1,0 +1,138 @@
+name: release
+
+# Only ever started by hand: Actions tab -> release -> Run workflow (or `gh workflow run release.yml`).
+# Pushes, tags and pull requests never start it.
+on:
+  workflow_dispatch:
+    inputs:
+      draft_release:
+        description: 'Also create a draft release (stays invisible until you publish it on GitHub)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    # A stuck run must not use up the month's minutes.
+    timeout-minutes: 30
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v6
+
+      - name: validate gradle wrapper
+        uses: gradle/actions/wrapper-validation@v6
+
+      - name: setup jdk
+        uses: actions/setup-java@v5
+        with:
+          java-version: '25'
+          distribution: 'microsoft'
+
+      # Caches Gradle's dependencies and wrapper between runs.
+      - name: setup gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: setup node
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+
+      - name: enable corepack
+        run: corepack enable
+
+      # Yarn 4 keeps downloaded packages in one global folder.
+      - name: cache yarn packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.yarn/berry/cache
+          key: yarn-${{ hashFiles('web/yarn.lock') }}
+          restore-keys: yarn-
+
+      # The Minecraft client JAR and the minecraft.wiki icons used by scripts/textures/extract_mc_textures.py. Reusing them
+      # keeps the icons the same between runs and spares the wiki thousands of downloads; a new Minecraft version or
+      # script starts from the previous cache and only adds what changed.
+      - name: cache texture downloads
+        uses: actions/cache@v4
+        with:
+          path: scripts/.cache
+          key: mc-textures-${{ hashFiles('gradle.properties', 'scripts/textures/extract_mc_textures.py') }}
+          restore-keys: mc-textures-
+
+      - name: read version
+        id: version
+        run: |
+          mod_version=$(sed -n 's/^mod_version=//p' gradle.properties)
+          minecraft_version=$(sed -n 's/^minecraft_version=//p' gradle.properties)
+          echo "mod=$mod_version" >> "$GITHUB_OUTPUT"
+          echo "full=$mod_version+$minecraft_version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$mod_version+$minecraft_version" >> "$GITHUB_OUTPUT"
+
+      - name: release notes from CHANGELOG.md
+        env:
+          MOD_VERSION: ${{ steps.version.outputs.mod }}
+          DRAFT_RELEASE: ${{ inputs.draft_release }}
+        run: |
+          header=$(grep -m1 "^## \[$MOD_VERSION\]" CHANGELOG.md || true)
+          if [ -z "$header" ]; then
+            echo "::error::CHANGELOG.md has no section for $MOD_VERSION"
+            exit 1
+          fi
+          if ! echo "$header" | grep -Eq ' - [0-9]{4}-[0-9]{2}-[0-9]{2}$'; then
+            if [ "$DRAFT_RELEASE" = "true" ]; then
+              echo "::error::Set the release date in CHANGELOG.md ('$header') before creating the release"
+              exit 1
+            fi
+            echo "::warning::'$header' has no release date yet"
+          fi
+          # Everything between this version's heading and the next one.
+          awk -v heading="$header" '$0 == heading { found = 1; next } found && /^## / { exit } found' CHANGELOG.md > release-notes.md
+          echo "Release notes: $(wc -l < release-notes.md) lines"
+
+      - name: build
+        run: ./gradlew build
+
+      - name: collect jars
+        env:
+          FULL_VERSION: ${{ steps.version.outputs.full }}
+        run: |
+          mkdir dist
+          cp "fabric/build/libs/stats-webui-plus-fabric-$FULL_VERSION.jar" dist/
+          cp "neoforge/build/libs/stats-webui-plus-neoforge-$FULL_VERSION.jar" dist/
+          ls -l dist
+
+      # Without a draft release, the JARs and notes are attached to the run for a day, to check them.
+      - name: attach jars to the run
+        if: ${{ !inputs.draft_release }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: stats-webui-plus-${{ steps.version.outputs.full }}
+          path: |
+            dist/*.jar
+            release-notes.md
+          retention-days: 1
+
+      # A draft release is only visible to people with access to the repository and creates no tag until it is
+      # published by hand on GitHub.
+      - name: create draft release
+        if: ${{ inputs.draft_release }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          FULL_VERSION: ${{ steps.version.outputs.full }}
+        run: |
+          if gh release view "$TAG" > /dev/null 2>&1 || git ls-remote --exit-code --tags origin "refs/tags/$TAG" > /dev/null; then
+            echo "::error::A release or tag $TAG already exists"
+            exit 1
+          fi
+          gh release create "$TAG" dist/*.jar \
+            --draft \
+            --target "$GITHUB_SHA" \
+            --title "Stats WebUI Plus $FULL_VERSION" \
+            --notes-file release-notes.md

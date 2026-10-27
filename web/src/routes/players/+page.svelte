@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { pageTitleTag } from '$lib/branding.svelte';
 	import { goto } from '$app/navigation';
 	import { getRoster } from '$lib/api';
 	import Loader from '$lib/components/Loader.svelte';
@@ -128,7 +129,7 @@
 	<title>{pageTitle(t('nav.players'))}</title>
 </svelte:head>
 
-<h1>{t('players.heading')}</h1>
+<svelte:element this={pageTitleTag()} class="page-title">{t('players.heading')}</svelte:element>
 <p class="lead">{t('players.lead')}</p>
 
 {#if failed}
@@ -216,7 +217,9 @@
 {/if}
 
 <style>
-	h1 {
+	.page-title {
+		/* Same look whether this is the page's h1 or an h2 below the site heading. */
+		font-size: 2rem;
 		margin: 0 0 0.4rem;
 		text-align: center;
 	}

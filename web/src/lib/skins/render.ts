@@ -37,9 +37,23 @@ export const bodyPoses = ['idle', 'walk', 'run', 'fly'] as const;
 
 export type BodyPose = (typeof bodyPoses)[number];
 
-export const defaultBodyTheta = 0.55;
+export const defaultBodyPose: BodyPose = 'walk';
+
+export function isBodyPose(value: string | undefined): value is BodyPose {
+	return (bodyPoses as readonly string[]).includes(value ?? '');
+}
+
+// Camera angle around the player in degrees: 0 = straight from the front, 90 = side, 180 = back.
+export const defaultBodyAngle = 0;
 export const defaultBodyPhi = Math.PI / 2;
-export const defaultBodyZoom = 48;
+// The body viewer's camera distance is fitted to the canvas (fitBodyZoom): the model is 32 units tall and, with
+// swinging arms and legs, up to about 18 wide from any angle; flying it lies flat and is about as long as it is
+// tall otherwise. It fills this share of the height, or of the width if the canvas is narrow.
+const bodyFov = 70;
+const bodyHeight = 32;
+const bodyWidth: Record<BodyPose, number> = { idle: 18, walk: 18, run: 18, fly: 34 };
+// Below 1 also because perspective makes the head and feet, nearer to the camera, look bigger than at the center.
+const bodyFill = 0.7;
 export const podiumTheta = -0.58;
 export const podiumPhi = 1.42;
 export const podiumZoom = 25;
@@ -57,10 +71,20 @@ export function applyBodyPose(viewer: SkinViewer, pose: BodyPose) {
 	viewer.playAnimation(pose, pose === 'walk' ? { speed: walkSpeed } : undefined);
 }
 
-export function resetBodyCamera(viewer: SkinViewer) {
+export function setBodyAngle(viewer: SkinViewer, degrees: number) {
+	viewer.setRotation((degrees * Math.PI) / 180, defaultBodyPhi);
+}
+
+/** Camera distance at which the whole body fits a canvas of this size (see bodyFill). */
+export function fitBodyZoom(width: number, height: number, pose: BodyPose): number {
+	const visibleHeight = Math.max(bodyHeight, (bodyWidth[pose] * height) / Math.max(width, 1)) / bodyFill;
+	return visibleHeight / 2 / Math.tan((bodyFov * Math.PI) / 360);
+}
+
+export function resetBodyCamera(viewer: SkinViewer, zoom: number, degrees = defaultBodyAngle) {
 	viewer.setAutoRotate(false);
-	viewer.setRotation(defaultBodyTheta, defaultBodyPhi);
-	viewer.setZoom(defaultBodyZoom);
+	setBodyAngle(viewer, degrees);
+	viewer.setZoom(zoom);
 }
 
 export async function renderHeadSkin(
@@ -94,10 +118,11 @@ export async function createBodyViewer(canvas: HTMLCanvasElement, uuid: string):
 		enableRotate: true,
 		enableZoom: false,
 		autoRotate: false,
-		zoom: defaultBodyZoom
+		fov: bodyFov,
+		zoom: fitBodyZoom(width, height, defaultBodyPose)
 	});
-	resetBodyCamera(viewer);
-	applyBodyPose(viewer, 'run');
+	resetBodyCamera(viewer, fitBodyZoom(width, height, defaultBodyPose));
+	applyBodyPose(viewer, defaultBodyPose);
 	viewer.startRenderLoop();
 	return {
 		viewer,

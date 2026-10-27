@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { pageTitleTag } from '$lib/branding.svelte';
 	import { getLeaderboards, getPlayerProfile, getPlayers } from '$lib/api';
 	import Loader from '$lib/components/Loader.svelte';
 	import McItem from '$lib/components/McItem.svelte';
@@ -8,6 +9,7 @@
 	import type { LeaderboardBoard, LeaderboardCategory, LeaderboardsResponse } from '$lib/types';
 	import {
 		matchesVanillaQuery,
+		sortVanillaIds,
 		vanillaBoardHref,
 		vanillaGroupIcons,
 		vanillaGroups,
@@ -17,8 +19,9 @@
 	} from '$lib/vanillaStats';
 
 	let query = $state('');
-	let catalog = $state<LeaderboardsResponse | null>(null);
-	let vanilla = $state<Partial<Record<VanillaGroup, string[]>>>({});
+	// Raw: replaced as a whole when loaded, never changed in place; deep reactivity would proxy every row.
+	let catalog = $state.raw<LeaderboardsResponse | null>(null);
+	let vanilla = $state.raw<Partial<Record<VanillaGroup, string[]>>>({});
 	let vanillaReady = $state(false);
 	let openGroups = $state(closedVanilla());
 	const filterQuery = deferredValue(() => query);
@@ -64,7 +67,10 @@
 
 	function vanillaIds(group: VanillaGroup): string[] {
 		void i18n.locale;
-		return (vanilla[group] ?? []).filter((id) => matchesVanillaQuery(group, id, filterQuery.current));
+		return sortVanillaIds(
+			group,
+			(vanilla[group] ?? []).filter((id) => matchesVanillaQuery(group, id, filterQuery.current))
+		);
 	}
 
 	const curatedShown = $derived(
@@ -129,7 +135,7 @@
 	<title>{pageTitle(t('nav.leaderboards'))}</title>
 </svelte:head>
 
-<h1>{t('leaderboards.heading')}</h1>
+<svelte:element this={pageTitleTag()} class="page-title">{t('leaderboards.heading')}</svelte:element>
 <p class="lead">{t('leaderboards.lead')}</p>
 
 <div class="filters">
@@ -205,7 +211,9 @@
 {/if}
 
 <style>
-	h1 {
+	.page-title {
+		/* Same look whether this is the page's h1 or an h2 below the site heading. */
+		font-size: 2rem;
 		margin: 0 0 0.4rem;
 		text-align: center;
 	}
@@ -219,7 +227,7 @@
 		margin: 0.9rem 0 1.1rem;
 	}
 
-	h2 {
+	h2:not(.page-title) {
 		display: flex;
 		align-items: center;
 		gap: 0.45rem;

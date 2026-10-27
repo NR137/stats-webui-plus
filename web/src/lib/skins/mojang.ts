@@ -41,6 +41,10 @@ export function mojangProfileUrl(uuid: string): string {
 }
 
 export function viaMojangProxy(url: string): string {
+	// The server's own files, like the default skin it names for players without a skin of their own.
+	if (url.startsWith('/')) {
+		return url;
+	}
 	if (url.startsWith(SESSION_ORIGIN)) {
 		return `/mojang${url.slice(SESSION_ORIGIN.length)}`;
 	}
@@ -65,7 +69,41 @@ export function getPlayerTextures(uuid: string): Promise<PlayerTextures> {
 	return pending;
 }
 
-async function cachedImageUrl(url: string): Promise<string> {
+/**
+ * Minecraft ignores the hat layer of an old 64x32 skin when that part of the texture has no transparent pixel
+ * (SkinTextureDownloader.doNotchTransparencyHack, made for Notch's skin). The skin renderer doesn't, which draws
+ * an opaque box over the head, so apply the same rule here. Other skins are returned unchanged.
+ */
+async function applyLegacyHatRule(blob: Blob): Promise<Blob> {
+	const bitmap = await createImageBitmap(blob);
+	try {
+		if (bitmap.width !== 64 || bitmap.height !== 32) {
+			return blob;
+		}
+		const canvas = document.createElement('canvas');
+		canvas.width = 64;
+		canvas.height = 32;
+		const context = canvas.getContext('2d', { willReadFrequently: true });
+		if (!context) {
+			return blob;
+		}
+		context.drawImage(bitmap, 0, 0);
+		// Minecraft checks x 32-63, y 0-31 and, if nothing there is transparent, clears it; the lower half is made
+		// opaque again right after, so effectively only the hat layer (y 0-15) becomes transparent.
+		const area = context.getImageData(32, 0, 32, 32).data;
+		for (let i = 3; i < area.length; i += 4) {
+			if (area[i] < 128) {
+				return blob;
+			}
+		}
+		context.clearRect(32, 0, 32, 16);
+		return await new Promise<Blob>((resolve) => canvas.toBlob((fixed) => resolve(fixed ?? blob), 'image/png'));
+	} finally {
+		bitmap.close();
+	}
+}
+
+async function cachedImageUrl(url: string, transform?: (blob: Blob) => Promise<Blob>): Promise<string> {
 	const cached = imageCache.get(url);
 	if (cached) {
 		return cached;
@@ -76,7 +114,7 @@ async function cachedImageUrl(url: string): Promise<string> {
 			throw new Error(`${response.status} ${response.statusText}`);
 		}
 		const blob = await response.blob();
-		return URL.createObjectURL(blob);
+		return URL.createObjectURL(transform ? await transform(blob) : blob);
 	})();
 	imageCache.set(url, pending);
 	pending.catch(() => {
@@ -86,6 +124,7 @@ async function cachedImageUrl(url: string): Promise<string> {
 }
 
 async function loadTextures(uuid: string): Promise<PlayerTextures> {
+	// For players without a skin of their own, the server answers with a profile naming their default skin.
 	const response = await fetch(viaMojangProxy(mojangProfileUrl(uuid)));
 	if (!response.ok) {
 		throw new Error(`${response.status} ${response.statusText}`);
@@ -103,7 +142,7 @@ async function loadTextures(uuid: string): Promise<PlayerTextures> {
 	const skinProxy = viaMojangProxy(skin.url);
 	const capeProxy = payload.textures?.CAPE?.url ? viaMojangProxy(payload.textures.CAPE.url) : null;
 	const [skinUrl, capeUrl] = await Promise.all([
-		cachedImageUrl(skinProxy),
+		cachedImageUrl(skinProxy, applyLegacyHatRule),
 		capeProxy ? cachedImageUrl(capeProxy) : Promise.resolve(null)
 	]);
 	return {

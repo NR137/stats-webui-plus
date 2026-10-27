@@ -7,19 +7,9 @@ export default defineConfig({
 	server: {
 		port: 5173,
 		proxy: {
+			// The mod's API and its Mojang proxy (skin cache, default skins for players without one of their own).
 			'/api': 'http://127.0.0.1:25580',
-			'/mojang/session': {
-				target: 'https://sessionserver.mojang.com',
-				changeOrigin: true,
-				secure: true,
-				rewrite: (path) => path.replace(/^\/mojang/, '')
-			},
-			'/mojang/textures': {
-				target: 'https://textures.minecraft.net',
-				changeOrigin: true,
-				secure: true,
-				rewrite: (path) => path.replace(/^\/mojang\/textures/, '')
-			}
+			'/mojang': 'http://127.0.0.1:25580'
 		}
 	},
 	preview: {

@@ -6,8 +6,13 @@
 	let ready = $state(false);
 	let imgEl = $state<HTMLImageElement | undefined>();
 
+	// Through $derived, so only a different ID resets the icon. Reading the prop directly would also rerun this
+	// when the parent passes the same ID again (e.g. its list is rebuilt after a language switch); the image
+	// then stays loaded but hidden, as nothing fires onload again.
+	const currentId = $derived(id);
+
 	$effect(() => {
-		void id;
+		void currentId;
 		attempt = 0;
 		ready = false;
 	});
