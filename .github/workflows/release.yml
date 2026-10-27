@@ -18,7 +18,12 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # The same tests as on pull requests; no JARs or release if any of them fails.
+  tests:
+    uses: ./.github/workflows/tests.yml
+
   release:
+    needs: tests
     runs-on: ubuntu-24.04
     # A stuck run must not use up the month's minutes.
     timeout-minutes: 30

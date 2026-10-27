@@ -1,0 +1,99 @@
+name: tests
+
+# Pushes to main, pull requests, and every release (release.yml runs this first and stops if it fails).
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.ref }}
+  # A new push to a pull request makes the older run pointless; releases and main always finish.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  java:
+    name: java tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v6
+
+      - name: validate gradle wrapper
+        uses: gradle/actions/wrapper-validation@v6
+
+      - name: setup jdk
+        uses: actions/setup-java@v5
+        with:
+          java-version: '25'
+          distribution: 'microsoft'
+
+      - name: setup gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: test
+        run: ./gradlew :common:test
+
+      - name: attach test report
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: java-test-report
+          path: common/build/reports/tests/test
+          retention-days: 7
+
+  web:
+    name: web tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v6
+
+      - name: setup node
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+
+      - name: enable corepack
+        run: corepack enable
+
+      - name: cache yarn packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.yarn/berry/cache
+          key: yarn-${{ hashFiles('web/yarn.lock') }}
+          restore-keys: yarn-
+
+      # Only the Minecraft client JAR and language files; a release's full texture cache works too.
+      - name: cache minecraft downloads
+        uses: actions/cache@v4
+        with:
+          path: scripts/.cache
+          key: mc-lang-${{ hashFiles('gradle.properties', 'scripts/textures/extract_mc_textures.py') }}
+          restore-keys: |
+            mc-lang-
+            mc-textures-
+
+      # advancementLang.json is generated, not in git, and the web code imports it.
+      - name: minecraft texts
+        run: |
+          minecraft_version=$(sed -n 's/^minecraft_version=//p' gradle.properties)
+          python3 scripts/textures/extract_mc_textures.py --version "$minecraft_version" --lang-only
+
+      - name: install
+        working-directory: web
+        run: corepack yarn install --immutable
+
+      - name: type check
+        working-directory: web
+        run: corepack yarn check
+
+      - name: test
+        working-directory: web
+        run: corepack yarn test

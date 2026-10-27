@@ -26,7 +26,12 @@ public record MenuLink(Object label, String url, boolean newTab) {
 
 	public static boolean isAllowedUrl(String url) {
 		String lower = url.toLowerCase(Locale.ROOT);
-		return url.isEmpty() || lower.startsWith("http://") || lower.startsWith("https://") || url.startsWith("/");
+		return url.isEmpty() || lower.startsWith("http://") || lower.startsWith("https://") || isSitePath(url);
+	}
+
+	/** A page on this site. Browsers read //host and /\host as another site, so those don't count. */
+	private static boolean isSitePath(String url) {
+		return url.startsWith("/") && !url.startsWith("//") && !url.startsWith("/\\");
 	}
 
 	public Map<String, Object> toJson() {
@@ -49,7 +54,7 @@ public record MenuLink(Object label, String url, boolean newTab) {
 		boolean newTab = !json.has("newTab") || !json.get("newTab").isJsonPrimitive() || json.get("newTab").getAsBoolean();
 		MenuLink link = new MenuLink(label, url, newTab);
 		if (!isAllowedUrl(url)) {
-			McStatsWebui.LOGGER.warn("Hiding link {}: url must start with http://, https:// or /", url);
+			McStatsWebui.LOGGER.warn("Hiding link {}: url must start with http://, https:// or a single / (a page on this site)", url);
 		} else if (!url.isEmpty() && !link.hasLabel()) {
 			McStatsWebui.LOGGER.warn("Hiding link {}: it has no label", url);
 		}

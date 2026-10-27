@@ -16,9 +16,21 @@ import type {
 } from './types';
 import { parseVanillaBoardId } from './vanillaStats';
 
+/** The API answered 404: that player, leaderboard or advancement doesn't exist (as opposed to a server problem). */
+export class NotFoundError extends Error {
+	constructor() {
+		super('not_found');
+		this.name = 'NotFoundError';
+	}
+}
+
 async function getJson<T>(path: string): Promise<T> {
 	const response = await fetch(path);
 	const contentType = response.headers.get('content-type') ?? '';
+	// Only the mod's own JSON 404 counts; an HTML 404 comes from something in between (proxy, wrong address).
+	if (response.status === 404 && contentType.includes('application/json')) {
+		throw new NotFoundError();
+	}
 	if (!contentType.includes('application/json') || !response.ok) {
 		throw new Error('unavailable');
 	}
@@ -266,7 +278,8 @@ export function getLeaderboard(id: string) {
 		.join('/');
 	return getJson<LeaderboardResponse>(`/api/leaderboards/${path}`).catch(async (error) => {
 		const vanilla = parseVanillaBoardId(id);
-		if (!vanilla) {
+		// The server knows every vanilla stat, so a 404 means there is no such stat: no need to ask every player.
+		if (!vanilla || error instanceof NotFoundError) {
 			throw error;
 		}
 		return leaderboardFromProfiles(vanilla.group, vanilla.id);

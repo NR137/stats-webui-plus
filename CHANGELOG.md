@@ -53,7 +53,9 @@ reworked web UI. All changes below are relative to mc-stats-webui 1.2.1.
   `headerImagePosition` puts it above the site heading (`top`, default), between heading and slogan (`between`) or
   below the slogan (`bottom`).
 - **Custom menu links** (`links`), e.g. to a web map, a Discord server or an admin dashboard, with labels per language.
-  Three placeholders (Map, Discord, Dashboard) are preconfigured and only appear once a URL is set.
+  Three placeholders (Map, Discord, Dashboard) are preconfigured and only appear once a URL is set. A URL must start
+  with `http://`, `https://` or a single `/` (a page on this site); `//host` and anything else is hidden with a
+  warning in the server log.
 - `windowTitle` can have text per language; the default is "{page} - My Server".
 
 #### Status bar
@@ -141,6 +143,9 @@ reworked web UI. All changes below are relative to mc-stats-webui 1.2.1.
 - **Player pages load about 4× less data** (e.g. 840 KB → 190 KB, gzipped 51 KB → 13 KB): vanilla stats the player
   never raised are sent as compact ID lists instead of one full row each, and the web UI rebuilds the identical rows.
   The leaderboards overview (`/api/leaderboards`) sends its stat ID lists the same way (e.g. 290 KB → 190 KB).
+- Pages without a name in the URL (`/about`, `/players`, `/leaderboards`, `/compare`, `/advancements`) get the page
+  SvelteKit prerendered for them instead of the general fallback page, so the browser loads that page's scripts and
+  styles right away.
 - **Player skins never hold up the stats.** The Mojang skin proxy asks Mojang on two threads of its own, so a page full
   of player heads can't make the API wait. Skin images are kept in memory (a skin's URL never changes its image),
   and so are player profiles: one older than 5 minutes is served at once and looked up again in the background, so
@@ -154,7 +159,7 @@ reworked web UI. All changes below are relative to mc-stats-webui 1.2.1.
 
 #### Web UI
 
-- **Language detection** checks the browser's whole preference list (German first and English second now gives
+- **Language detection** checks the browser's whole preference list (Dutch first and English second now gives
   English), falls back to the server's `defaultLanguage` (English by default) instead of Spanish, and only remembers
   a language picked in the switcher.
 - **Lists are sorted by name in the visitor's language:** stats with equal values, the stat lists on the leaderboards
@@ -200,6 +205,11 @@ reworked web UI. All changes below are relative to mc-stats-webui 1.2.1.
 - Entity icons are chosen in one place (the texture script) instead of a second table in the web UI.
 - The web dev server (`yarn dev`) sends `/mojang` to the running mod like `/api`, instead of straight to Mojang, so
   skins (and default skins) work there as on the real site.
+- **Tests:** unit and HTTP tests for the shared Java code (`./gradlew :common:test`: config, ranking rules, session
+  log, stats loading and API data, web server) and Vitest tests for the web UI (`corepack yarn test`: tiers,
+  translations, API client, language detection). The new `tests` workflow runs them on every pull request and push to
+  `main`, and the release workflow runs them first and stops if one fails. An optional pre-commit hook
+  (`git config core.hooksPath .githooks`) runs the tests a commit touches.
 - New screenshots of nine sample players on the Fabric dev server, taken by `scripts/sample_data/` and
   `scripts/screenshots/`, which take them again for later versions. `scripts/art/` draws the shipped header image
   and the mod icon. All scripts are Python; the build itself needs nothing beyond Python 3.
@@ -247,6 +257,15 @@ reworked web UI. All changes below are relative to mc-stats-webui 1.2.1.
   is always kept.
 - Empty places on the home page podium no longer show a faded box overlapping the tabs below them.
 - The page's language attribute is English instead of Spanish until the visitor's language is applied.
+- Player pages of Bedrock players on Geyser/Floodgate servers (names like `.Steve`) and pages of IDs with a dot (e.g.
+  from mods) gave a 404 when opened directly or reloaded: any path with a dot was taken for a missing file. Now only
+  missing files under `/_app/` and `/mc/` and at the top level (e.g. `/favicon.ico`) are a 404; every other path opens
+  the page, which asks the API whether that player or ID exists. Names with `..` in them work too.
+- Names with `+` or `%` (possible with other Floodgate prefixes) weren't found: the API decoded them twice, turning
+  `+` into a space.
+- A player, leaderboard or advancement that doesn't exist says so ("There is no player with this name on this
+  server.") instead of asking to try again later. For an unknown vanilla stat the leaderboard page no longer
+  downloads every player's profile first.
 
 #### Skins and icons
 

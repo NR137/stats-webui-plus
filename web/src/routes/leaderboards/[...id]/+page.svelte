@@ -9,13 +9,14 @@
 	import RankingScore from '$lib/components/RankingScore.svelte';
 	import SearchField from '$lib/components/SearchField.svelte';
 	import Tooltip from '$lib/components/Tooltip.svelte';
-	import { getLeaderboard } from '$lib/api';
+	import { NotFoundError, getLeaderboard } from '$lib/api';
 	import { boardHint, i18n, pageTitle, t, tDynamic } from '$lib/i18n/i18n.svelte';
 	import type { LeaderboardResponse } from '$lib/types';
 	import { parseVanillaBoardId, vanillaHint, vanillaIcon, vanillaLabel } from '$lib/vanillaStats';
 
 	let board = $state<LeaderboardResponse | null>(null);
 	let failed = $state(false);
+	let notFound = $state(false);
 	let loading = $state(true);
 	let query = $state('');
 
@@ -69,6 +70,7 @@
 		}
 		board = null;
 		failed = false;
+		notFound = false;
 		loading = true;
 		query = '';
 		getLeaderboard(id)
@@ -76,9 +78,10 @@
 				board = data;
 				failed = false;
 			})
-			.catch(() => {
+			.catch((error) => {
 				board = null;
 				failed = true;
+				notFound = error instanceof NotFoundError;
 			})
 			.finally(() => {
 				loading = false;
@@ -105,7 +108,7 @@
 </p>
 
 {#if failed}
-	<p class="empty">{t('leaderboard.loadError')}</p>
+	<p class="empty">{t(notFound ? 'leaderboard.notFound' : 'leaderboard.loadError')}</p>
 {:else if loading}
 	<Loader />
 {:else if !board || board.entries.length === 0}

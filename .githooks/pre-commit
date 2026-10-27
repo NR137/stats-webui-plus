@@ -1,0 +1,49 @@
+#!/bin/sh
+# Runs the tests the staged changes touch before each commit, like the tests workflow does on GitHub.
+# Turn on once per clone: git config core.hooksPath .githooks
+# Skip once: git commit --no-verify
+# Note: the tests see the working tree, not only what is staged.
+
+root=$(git rev-parse --show-toplevel) || exit 1
+cd "$root" || exit 1
+
+staged=$(git diff --cached --name-only --diff-filter=ACMRD)
+[ -z "$staged" ] && exit 0
+
+java=false
+web=false
+for file in $staged; do
+	case "$file" in
+		common/* | fabric/* | neoforge/* | build-logic/* | *.gradle | gradle.properties | gradle/*) java=true ;;
+		web/*) web=true ;;
+	esac
+done
+
+if $java; then
+	echo "pre-commit: java tests (./gradlew :common:test)"
+	./gradlew :common:test --quiet || {
+		echo "pre-commit: java tests failed, see common/build/reports/tests/test/index.html (skip with --no-verify)"
+		exit 1
+	}
+fi
+
+if $web; then
+	if [ ! -d web/node_modules ]; then
+		echo "pre-commit: web/node_modules is missing, run 'corepack yarn install' in web/ (skip with --no-verify)"
+		exit 1
+	fi
+	if [ ! -f web/src/lib/mc/advancementLang.json ]; then
+		echo "pre-commit: web/src/lib/mc/advancementLang.json is missing, run ./gradlew extractMcTextures once"
+		exit 1
+	fi
+	echo "pre-commit: web type check and tests"
+	check=$(cd web && corepack yarn check 2>&1) || {
+		echo "$check"
+		echo "pre-commit: web type check failed (skip with --no-verify)"
+		exit 1
+	}
+	(cd web && corepack yarn test --silent) || {
+		echo "pre-commit: web tests failed (skip with --no-verify)"
+		exit 1
+	}
+fi

@@ -2,7 +2,7 @@
 	import { pageTitleTag } from '$lib/branding.svelte';
 	import { page } from '$app/state';
 	import { advancementDescription, advancementTitle } from '$lib/advancements';
-	import { getAdvancement, getAdvancementMost } from '$lib/api';
+	import { NotFoundError, getAdvancement, getAdvancementMost } from '$lib/api';
 	import BackNav from '$lib/components/BackNav.svelte';
 	import HomePodium from '$lib/components/HomePodium.svelte';
 	import Loader from '$lib/components/Loader.svelte';
@@ -16,6 +16,7 @@
 	let board = $state<LeaderboardResponse | null>(null);
 	let detail = $state<AdvancementDetailResponse | null>(null);
 	let failed = $state(false);
+	let notFound = $state(false);
 	let loading = $state(true);
 	let query = $state('');
 
@@ -63,6 +64,7 @@
 		board = null;
 		detail = null;
 		failed = false;
+		notFound = false;
 		loading = true;
 		query = '';
 		const request = most ? getAdvancementMost() : getAdvancement(id);
@@ -74,8 +76,9 @@
 					detail = data as AdvancementDetailResponse;
 				}
 			})
-			.catch(() => {
+			.catch((error) => {
 				failed = true;
+				notFound = error instanceof NotFoundError;
 			})
 			.finally(() => {
 				loading = false;
@@ -108,7 +111,7 @@
 </p>
 
 {#if failed}
-	<p class="empty">{t('advancements.loadError')}</p>
+	<p class="empty">{t(notFound ? 'advancements.notFound' : 'advancements.loadError')}</p>
 {:else if loading}
 	<Loader />
 {:else}

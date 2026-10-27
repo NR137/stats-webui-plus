@@ -11,7 +11,7 @@
 	import Tabs from '$lib/components/Tabs.svelte';
 	import Tooltip from '$lib/components/Tooltip.svelte';
 	import { advancementTabTitle, compareAdvancementTitles, matchesAdvancementQuery } from '$lib/advancements';
-	import { getAdvancements, getLeaderboards, getPlayerProfile } from '$lib/api';
+	import { NotFoundError, getAdvancements, getLeaderboards, getPlayerProfile } from '$lib/api';
 	import { boardHint, formatRelative, formatWhen, i18n, pageTitle, t, tDynamic } from '$lib/i18n/i18n.svelte';
 	import type { MessageKey } from '$lib/i18n/messages/es';
 	import { gradeItems, gradeOrder } from '$lib/playerStats';
@@ -34,6 +34,7 @@
 	let advancementTabs = $state<AdvancementTab[]>([]);
 	let statCategories = $state<LeaderboardCategory[]>([]);
 	let failed = $state(false);
+	let notFound = $state(false);
 	let loading = $state(true);
 	let query = $state('');
 	let hideZeros = $state({ ...hideZerosByDefault });
@@ -102,6 +103,7 @@
 		advancementTabs = [];
 		statCategories = [];
 		failed = false;
+		notFound = false;
 		loading = true;
 		query = '';
 		hideZeros = { ...hideZerosByDefault };
@@ -123,9 +125,10 @@
 				);
 				failed = false;
 			})
-			.catch(() => {
+			.catch((error) => {
 				player = null;
 				failed = true;
+				notFound = error instanceof NotFoundError;
 			})
 			.finally(() => {
 				loading = false;
@@ -219,7 +222,7 @@
 
 {#if failed}
 	<svelte:element this={pageTitleTag()} class="page-title">{page.params.name}</svelte:element>
-	<p class="muted">{t('player.loadError')}</p>
+	<p class="muted">{t(notFound ? 'player.notFound' : 'player.loadError')}</p>
 {:else if loading || !player}
 	<svelte:element this={pageTitleTag()} class="page-title">{page.params.name}</svelte:element>
 	<Loader />

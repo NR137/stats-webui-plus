@@ -15,6 +15,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.jar.JarFile;
 import java.util.zip.CRC32;
@@ -23,6 +24,10 @@ import java.util.stream.Stream;
 
 public final class StaticHandler {
 	private static final String ROOT = "/assets/" + McStatsWebui.MOD_ID + "/web";
+	// Not html: a missing /something.html still gets the app, as before.
+	private static final Set<String> FILE_TYPES = Set.of(
+		"js", "mjs", "css", "map", "json", "txt", "xml", "png", "jpg", "jpeg", "gif", "webp", "svg", "ico", "woff", "woff2", "ttf"
+	);
 
 	private final Map<String, byte[]> cache = new ConcurrentHashMap<>();
 	// Per resource, so browsers can ask "still the same?" and get an empty 304 instead of the whole file again.
@@ -61,7 +66,7 @@ public final class StaticHandler {
 
 		String path = exchange.getRequestURI().getPath();
 		path = URLDecoder.decode(path, StandardCharsets.UTF_8);
-		if (path.contains("..")) {
+		if (climbsUp(path)) {
 			exchange.sendResponseHeaders(400, -1);
 			exchange.close();
 			return;
@@ -81,7 +86,14 @@ public final class StaticHandler {
 			exchange.close();
 			return;
 		}
+		if (bytes == null && !path.endsWith(".html")) {
+			// A page SvelteKit prerendered (/about -> about.html): the same shell as 200.html, but it already names
+			// that page's scripts and styles, so the browser loads them right away.
+			resource = ROOT + path + ".html";
+			bytes = load(resource);
+		}
 		if (bytes == null) {
+			// Pages that can't be prerendered, e.g. /players/<name>: the browser works out the page.
 			resource = ROOT + "/200.html";
 			bytes = load(resource);
 		}
@@ -227,9 +239,31 @@ public final class StaticHandler {
 		}
 	}
 
+	/** A ".." segment, also with "\\" as separator. Dots inside a name ("/players/..Steve") are fine. */
+	private static boolean climbsUp(String path) {
+		for (String segment : path.split("[/\\\\]", -1)) {
+			if (segment.equals("..")) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Paths that can only be files, so a missing one is a 404 and not a page: everything under /_app/ and /mc/, and
+	 * files at the top such as /favicon.ico. Deeper paths are pages, whatever their name: the web UI asks the API
+	 * whether /players/.Steve, /players/Steve.png or /advancements/mymod/data.json exists.
+	 */
 	private static boolean isAsset(String path) {
 		String lower = path.toLowerCase(Locale.ROOT);
-		return lower.contains(".") && !lower.endsWith(".html");
+		if (lower.startsWith("/_app/") || lower.startsWith("/mc/")) {
+			return true;
+		}
+		if (lower.lastIndexOf('/') != 0) {
+			return false;
+		}
+		int dot = lower.lastIndexOf('.');
+		return dot > 1 && FILE_TYPES.contains(lower.substring(dot + 1));
 	}
 
 	private static String mime(String resource) {

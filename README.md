@@ -68,7 +68,7 @@ Settings live in `config/stats_webui_plus.json` on the server. The file is creat
 ```
 
 - `label`: plain text, or text per language (falls back to English, then the first one given).
-- `url`: must start with `http://`, `https://` or `/` (a page on this site); anything else is ignored with a warning in the server log.
+- `url`: must start with `http://`, `https://` or a single `/` (a page on this site, e.g. `/map`); anything else, including `//host`, is ignored with a warning in the server log.
 - `newTab`: open in a new browser tab (default `true`).
 - Add as many entries as you like; `"links": []` removes the placeholders for good.
 
@@ -127,9 +127,22 @@ The SvelteKit UI is built static and shipped **inside both JARs**.
 
 **Scripts** (texture extraction, the banner and icon, sample players and screenshots): see [`scripts/README.md`](scripts/README.md), including how to take the screenshots again.
 
+### Tests
+
+```bash
+./gradlew :common:test         # Java: config, ranking, session log, stats and API data, web server (common/src/test)
+cd web && corepack yarn test   # web UI (src/**/*.test.ts); corepack yarn check for the types
+```
+
+The web tests need `web/src/lib/mc/advancementLang.json`, which `./gradlew extractMcTextures` creates.
+
+The `tests` workflow (`.github/workflows/tests.yml`) runs both on every pull request and push to `main`, and before every release.
+
+A pre-commit hook runs the same tests for the parts a commit touches. Turn it on once per clone with `git config core.hooksPath .githooks`; `git commit --no-verify` skips it.
+
 ### Releasing
 
-The `release` workflow (`.github/workflows/release.yml`) only runs when started by hand: **Actions → release → Run workflow**, or `gh workflow run release.yml`. Nothing starts it automatically.
+The `release` workflow (`.github/workflows/release.yml`) only runs when started by hand: **Actions → release → Run workflow**, or `gh workflow run release.yml`. Nothing starts it automatically. It runs the tests first; if one fails, nothing is built or released.
 
 1. Set `mod_version` in `gradle.properties` and give its `CHANGELOG.md` section a date (`## [1.3.0] - 2026-10-30`).
 2. Run the workflow without "draft release" to only build: the two JARs and the release notes are attached to the run for a day.

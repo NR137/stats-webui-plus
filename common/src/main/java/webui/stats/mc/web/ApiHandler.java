@@ -13,8 +13,6 @@ import webui.stats.mc.stats.StatsCache;
 import webui.stats.mc.stats.StatsService;
 
 import java.io.IOException;
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -35,6 +33,8 @@ public final class ApiHandler {
 			return;
 		}
 
+		// Already percent-decoded once, as the web UI encodes each part once (encodeURIComponent). Decoding again
+		// would turn a "+" into a space and break names with "+" or "%" (Floodgate prefixes can be any text).
 		String path = exchange.getRequestURI().getPath();
 		if (path.endsWith("/") && path.length() > 1) {
 			path = path.substring(0, path.length() - 1);
@@ -83,7 +83,7 @@ public final class ApiHandler {
 
 	private void handleDynamic(HttpExchange exchange, String path, List<PlayerRecord> players, String cache) throws IOException {
 		if (path.startsWith("/api/players/")) {
-			String name = decode(path.substring("/api/players/".length()));
+			String name = path.substring("/api/players/".length());
 			PlayerRecord player = StatsService.find(players, name);
 			if (player == null) {
 				HttpJson.error(exchange, 404, "not_found", "Player not found");
@@ -93,7 +93,7 @@ public final class ApiHandler {
 			return;
 		}
 		if (path.startsWith("/api/leaderboards/")) {
-			String id = decode(path.substring("/api/leaderboards/".length()));
+			String id = path.substring("/api/leaderboards/".length());
 			LeaderboardInfo info = StatsService.resolve(id, players);
 			if (info == null) {
 				HttpJson.error(exchange, 404, "not_found", "Unknown leaderboard");
@@ -103,7 +103,7 @@ public final class ApiHandler {
 			return;
 		}
 		if (path.startsWith("/api/advancements/")) {
-			String raw = decode(path.substring("/api/advancements/".length()));
+			String raw = path.substring("/api/advancements/".length());
 			String id = toAdvancementId(raw);
 			AdvancementInfo info = AdvancementCatalog.get().find(id);
 			if (info == null) {
@@ -177,10 +177,6 @@ public final class ApiHandler {
 			return path;
 		}
 		return path.substring(0, slash) + ":" + path.substring(slash + 1);
-	}
-
-	private static String decode(String value) {
-		return URLDecoder.decode(value, StandardCharsets.UTF_8);
 	}
 
 	private static String modVersion() {
