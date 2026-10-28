@@ -9,6 +9,7 @@ Usage: python3 scripts/sample_data/sample_data.py [server folder] [client JAR]
 Defaults: fabric/runs/server and scripts/.cache/minecraft/<version>/minecraft-client.jar (written by the build).
 """
 import json
+import os
 import random
 import re
 import sys
@@ -283,7 +284,8 @@ for name, skin, slim, hours, days, since_online, share, weights, style in PLAYER
 config_file = server / 'config' / 'stats_webui_plus.json'
 if config_file.is_file():
 	config = json.loads(config_file.read_text())
-	config.update({'port': 25590, 'bind': '127.0.0.1', 'serverAddress': 'play.example.com'})
+	# SAMPLE_DATA_BIND: 0.0.0.0 in compose.yaml, where the server runs in a container.
+	config.update({'port': 25590, 'bind': os.environ.get('SAMPLE_DATA_BIND', '127.0.0.1'), 'serverAddress': 'play.example.com'})
 	links = {'Map': 'https://map.example.com', 'Discord': 'https://discord.example.com'}
 	for link in config.get('links', []):
 		label = link['label'] if isinstance(link['label'], str) else link['label'].get('en', '')

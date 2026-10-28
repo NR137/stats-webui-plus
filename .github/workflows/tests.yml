@@ -1,6 +1,7 @@
 name: tests
 
 # Pushes to main, pull requests, and every release (release.yml runs this first and stops if it fails).
+# Everything runs in the dev image (docker/Dockerfile) with the commands of docker/tasks.sh, as on a developer's machine.
 on:
   push:
     branches: [main]
@@ -16,10 +17,11 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  java:
-    name: java tests
+  # JUnit tests of common/, type check and Vitest tests of web/.
+  quick:
+    name: java and web tests
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: checkout repository
         uses: actions/checkout@v6
@@ -27,48 +29,8 @@ jobs:
       - name: validate gradle wrapper
         uses: gradle/actions/wrapper-validation@v6
 
-      - name: setup jdk
-        uses: actions/setup-java@v5
-        with:
-          java-version: '25'
-          distribution: 'microsoft'
-
-      - name: setup gradle
-        uses: gradle/actions/setup-gradle@v6
-
-      - name: test
-        run: ./gradlew :common:test
-
-      - name: attach test report
-        if: ${{ failure() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: java-test-report
-          path: common/build/reports/tests/test
-          retention-days: 7
-
-  web:
-    name: web tests
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    steps:
-      - name: checkout repository
-        uses: actions/checkout@v6
-
-      - name: setup node
-        uses: actions/setup-node@v5
-        with:
-          node-version: '24'
-
-      - name: enable corepack
-        run: corepack enable
-
-      - name: cache yarn packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.yarn/berry/cache
-          key: yarn-${{ hashFiles('web/yarn.lock') }}
-          restore-keys: yarn-
+      - name: dev image
+        uses: ./.github/actions/dev-image
 
       # Only the Minecraft client JAR and language files; a release's full texture cache works too.
       - name: cache minecraft downloads
@@ -80,30 +42,23 @@ jobs:
             mc-lang-
             mc-textures-
 
-      # advancementLang.json is generated, not in git, and the web code imports it.
-      - name: minecraft texts
-        run: |
-          minecraft_version=$(sed -n 's/^minecraft_version=//p' gradle.properties)
-          python3 scripts/textures/extract_mc_textures.py --version "$minecraft_version" --lang-only
-
-      - name: install
-        working-directory: web
-        run: corepack yarn install --immutable
-
-      - name: type check
-        working-directory: web
-        run: corepack yarn check
-
       - name: test
-        working-directory: web
-        run: corepack yarn test
+        run: docker compose run --rm -T dev docker/tasks.sh test
 
-  # The release JARs, once for both smoke tests, and the game tests (a mock player on a game test server, see
-  # common/src/gametest), which need the same build.
-  jars:
-    name: build jars, game tests
+      - name: attach test report
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: java-test-report
+          path: common/build/reports/tests/test
+          retention-days: 7
+
+  # The release JARs, the game tests (a mock player on each loader's game test server) and the smoke tests (the JARs
+  # on the official Fabric and NeoForge servers, checked over HTTP and in headless Chromium).
+  integration:
+    name: build, game tests, smoke tests
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - name: checkout repository
         uses: actions/checkout@v6
@@ -111,32 +66,11 @@ jobs:
       - name: validate gradle wrapper
         uses: gradle/actions/wrapper-validation@v6
 
-      - name: setup jdk
-        uses: actions/setup-java@v5
-        with:
-          java-version: '25'
-          distribution: 'microsoft'
+      - name: dev image
+        uses: ./.github/actions/dev-image
 
-      - name: setup gradle
-        uses: gradle/actions/setup-gradle@v6
-
-      - name: setup node
-        uses: actions/setup-node@v5
-        with:
-          node-version: '24'
-
-      - name: enable corepack
-        run: corepack enable
-
-      - name: cache yarn packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.yarn/berry/cache
-          key: yarn-${{ hashFiles('web/yarn.lock') }}
-          restore-keys: yarn-
-
-      # The same texture cache as the release workflow (see the comment there).
-      - name: cache texture downloads
+      # The client JAR and minecraft.wiki icons (see release.yml) and the smoke test servers with their libraries.
+      - name: cache minecraft downloads
         uses: actions/cache@v4
         with:
           path: scripts/.cache
@@ -144,79 +78,21 @@ jobs:
           restore-keys: mc-textures-
 
       - name: build
-        run: ./gradlew build
+        run: docker compose run --rm -T dev docker/tasks.sh build
 
       - name: game tests
-        run: ./gradlew :fabric:runGameTest :neoforge:runGameTestServer
+        run: docker compose run --rm -T dev docker/tasks.sh gametest
 
-      # sample_data.py reads the advancements from the client JAR.
-      - name: keep jars
-        uses: actions/upload-artifact@v4
-        with:
-          name: smoke-jars
-          path: |
-            fabric/build/libs/*.jar
-            neoforge/build/libs/*.jar
-            scripts/.cache/minecraft/*/minecraft-client.jar
-          retention-days: 1
+      - name: smoke tests
+        run: docker compose run --rm -T dev docker/tasks.sh smoke
 
-  # The built JAR on the official Fabric and NeoForge server with the sample players, checked over HTTP and in a
-  # headless browser (scripts/smoke_test).
-  smoke:
-    name: smoke test (${{ matrix.loader }})
-    needs: jars
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    strategy:
-      fail-fast: false
-      matrix:
-        loader: [fabric, neoforge]
-    steps:
-      - name: checkout repository
-        uses: actions/checkout@v6
-
-      - name: setup jdk
-        uses: actions/setup-java@v5
-        with:
-          java-version: '25'
-          distribution: 'microsoft'
-
-      - name: get jars
-        uses: actions/download-artifact@v4
-        with:
-          name: smoke-jars
-
-      # The server, its libraries and Minecraft; the world, config and mods are written fresh every run.
-      - name: cache server
-        uses: actions/cache@v4
-        with:
-          path: scripts/.cache/smoke
-          key: smoke-${{ matrix.loader }}-${{ hashFiles('gradle.properties') }}
-
-      - name: setup python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: cache browser
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ hashFiles('scripts/requirements.txt') }}
-
-      # Playwright and its headless Chromium, for the browser checks (scripts/smoke_test/browser_checks.py).
-      - name: install playwright
-        run: |
-          pip install -r scripts/requirements.txt
-          python -m playwright install --with-deps --only-shell chromium
-
-      - name: smoke test
-        run: python scripts/smoke_test/smoke_test.py ${{ matrix.loader }} --browser
-
-      - name: attach server log
+      - name: attach logs
         if: ${{ failure() }}
         uses: actions/upload-artifact@v4
         with:
-          name: smoke-log-${{ matrix.loader }}
-          path: scripts/.cache/smoke/*/smoke-test.log
+          name: integration-logs
+          path: |
+            scripts/.cache/smoke/*/smoke-test.log
+            fabric/build/run/gameTest/logs
+            neoforge/build/run/gameTest/logs
           retention-days: 7

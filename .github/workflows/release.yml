@@ -34,31 +34,9 @@ jobs:
       - name: validate gradle wrapper
         uses: gradle/actions/wrapper-validation@v6
 
-      - name: setup jdk
-        uses: actions/setup-java@v5
-        with:
-          java-version: '25'
-          distribution: 'microsoft'
-
-      # Caches Gradle's dependencies and wrapper between runs.
-      - name: setup gradle
-        uses: gradle/actions/setup-gradle@v6
-
-      - name: setup node
-        uses: actions/setup-node@v5
-        with:
-          node-version: '24'
-
-      - name: enable corepack
-        run: corepack enable
-
-      # Yarn 4 keeps downloaded packages in one global folder.
-      - name: cache yarn packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.yarn/berry/cache
-          key: yarn-${{ hashFiles('web/yarn.lock') }}
-          restore-keys: yarn-
+      # The same image and caches as the tests (docker/Dockerfile, .github/actions/dev-image).
+      - name: dev image
+        uses: ./.github/actions/dev-image
 
       # The Minecraft client JAR and the minecraft.wiki icons used by scripts/textures/extract_mc_textures.py. Reusing them
       # keeps the icons the same between runs and spares the wiki thousands of downloads; a new Minecraft version or
@@ -101,7 +79,7 @@ jobs:
           echo "Release notes: $(wc -l < release-notes.md) lines"
 
       - name: build
-        run: ./gradlew build
+        run: docker compose run --rm -T dev docker/tasks.sh build
 
       - name: collect jars
         env:

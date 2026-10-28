@@ -205,6 +205,11 @@ reworked web UI. All changes below are relative to mc-stats-webui 1.2.1.
 - Entity icons are chosen in one place (the texture script) instead of a second table in the web UI.
 - The web dev server (`yarn dev`) sends `/mojang` to the running mod like `/api`, instead of straight to Mojang, so
   skins (and default skins) work there as on the real site.
+- **Docker is the only thing to install for development.** One dev image (`docker/Dockerfile`) holds Java, Node,
+  Python, Playwright with Chromium and a virtual screen; `compose.yaml` runs builds, tests, the dev server, the web
+  UI's dev server and the scripts in it with the caches in volumes, `docker/tasks.sh` has the commands, and
+  `.devcontainer/` opens the project in it in VS Code. CI and the release workflow use the same image. Java, Node and
+  Python versions are set only in `.tool-versions` (Gradle reads Java from there instead of `gradle.properties`).
 - **Tests:** unit and HTTP tests for the shared Java code (`./gradlew :common:test`: config, ranking rules, session
   log, stats loading and API data, web server) and Vitest tests for the web UI (`corepack yarn test`: tiers,
   translations, API client, language detection), with a fake Mojang server for the skin proxy and the name lookups.

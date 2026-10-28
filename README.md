@@ -104,24 +104,31 @@ Player skins are fetched from Mojang through `/mojang/...`, because browsers may
 
 ## 🛠️ Development
 
-**Needs:** Java 25 · Node 24+ · [Yarn via Corepack](https://yarnpkg.com/corepack) · Python 3 · Minecraft 26.3
+**Needs:** [Docker](https://docs.docker.com/get-docker/) (with Compose) · Minecraft 26.3 to play on the dev server
+
+Everything else runs in one dev image (`docker/Dockerfile`): Java, Node and Python in the versions of [`.tool-versions`](.tool-versions) (the only place they are set), Yarn from `web/package.json`, Playwright and Chromium from `scripts/requirements.txt`, Gradle from its wrapper. [`compose.yaml`](compose.yaml) runs it with your checkout mounted and the Gradle and Yarn caches in volumes. After changing `.tool-versions` or `scripts/requirements.txt`, run `docker compose build`.
+
+**VS Code:** open the folder and run **Dev Containers: Reopen in Container** (extension *Dev Containers*). Terminal, Gradle, Java and Svelte tooling then run in the container, the commands below work without `docker compose run --rm dev`, ports are forwarded, and the pre-commit hook is turned on.
+
+The build and test commands live in [`docker/tasks.sh`](docker/tasks.sh):
 
 ```bash
-./gradlew extractMcTextures   # once: generates the Minecraft icons and texts the UI needs (only icons.json is in git)
-cd web
-corepack yarn install
-corepack yarn dev
+docker compose run --rm dev docker/tasks.sh build      # JARs in fabric/build/libs/ and neoforge/build/libs/
+docker compose run --rm dev docker/tasks.sh test       # Java and web tests
+docker compose run --rm dev docker/tasks.sh all        # everything CI runs (tests, build, game tests, smoke tests)
+docker compose run --rm dev                            # a shell in the dev image
 ```
 
-UI: `http://localhost:5173` (proxies `/api` and `/mojang` to a running server on `25580`)
+Dev server and web UI with hot reload:
 
 ```bash
-./gradlew build                # JARs in fabric/build/libs/ and neoforge/build/libs/
-./gradlew :fabric:runServer    # Fabric dev server in fabric/runs/server/
-./gradlew :neoforge:runServer  # NeoForge dev server in neoforge/runs/server/
+docker compose up server               # Fabric dev server (fabric/runs/server/); LOADER=neoforge docker compose up server
+docker compose up web                  # web UI on http://localhost:5173, /api and /mojang go to the dev server
 ```
 
-Minecraft textures and minecraft.wiki inventory icons are downloaded once per Minecraft version into `scripts/.cache/`. To fetch them again (e.g. after the wiki updated icons), run `./gradlew build -PrefreshTextures`. Icons the wiki refuses during that burst of downloads are retried on the next build.
+Connect with Minecraft to `localhost:25565`; the mod's web UI is on `http://localhost:25580`. The first start of a dev server stops until you accept Mojang's EULA in `<loader>/runs/server/eula.txt`.
+
+Minecraft textures and minecraft.wiki inventory icons are downloaded once per Minecraft version into `scripts/.cache/`. To fetch them again (e.g. after the wiki updated icons), run `./gradlew build -PrefreshTextures` (in the dev image). Icons the wiki refuses during that burst of downloads are retried on the next build.
 
 The SvelteKit UI is built static and shipped **inside both JARs**.
 
@@ -129,24 +136,16 @@ The SvelteKit UI is built static and shipped **inside both JARs**.
 
 ### Tests
 
-```bash
-./gradlew :common:test         # Java: config, ranking, session log, stats and API data, web server (common/src/test)
-cd web && corepack yarn test   # web UI (src/**/*.test.ts); corepack yarn check for the types
-```
+| Task | What |
+| --- | --- |
+| `test-java` | JUnit tests of `common/` (`common/src/test`): config, ranking, session log, names, stats and API data, web server, Mojang proxy against a fake Mojang |
+| `test-web` | Type check and Vitest tests of the web UI (`web/src/**/*.test.ts`) |
+| `gametest` | A mock player on each loader's game test server: joining and leaving, stats and advancements reaching the stats cache through the mixins (`common/src/gametest`, registered in `fabric/src/gametest` and `neoforge/src/gametest`) |
+| `smoke` | The built JARs on the official Fabric and NeoForge servers with sample players, checked over HTTP and in headless Chromium (needs `build` first; see [`scripts/README.md`](scripts/README.md#smoke-test)) |
 
-The web tests need `web/src/lib/mc/advancementLang.json`, which `./gradlew extractMcTextures` creates.
+Run one with `docker compose run --rm dev docker/tasks.sh <task>`. The `tests` workflow (`.github/workflows/tests.yml`) runs all of them in the same image on every pull request and push to `main`, and before every release.
 
-Game tests run a mock player on a real game test server of each loader: joining and leaving, stats and advancements reaching the stats cache through the mixins (`common/src/gametest`, registered in `fabric/src/gametest` and `neoforge/src/gametest`):
-
-```bash
-./gradlew :fabric:runGameTest :neoforge:runGameTestServer
-```
-
-The smoke test runs the built JARs on the official Fabric and NeoForge servers with sample players and checks the API and, with `--browser`, the web UI in a headless browser: see [`scripts/README.md`](scripts/README.md#smoke-test).
-
-The `tests` workflow (`.github/workflows/tests.yml`) runs all of them on every pull request and push to `main`, and before every release.
-
-A pre-commit hook runs the same tests for the parts a commit touches. Turn it on once per clone with `git config core.hooksPath .githooks`; `git commit --no-verify` skips it.
+A pre-commit hook runs the Java or web tests a commit touches, in the dev container or through Docker. The dev container turns it on; in another clone, run `git config core.hooksPath .githooks` once. `git commit --no-verify` skips it.
 
 ### Releasing
 
@@ -168,6 +167,7 @@ One codebase builds both loaders (based on [MultiLoader-Template](https://github
 | `fabric/` | Fabric entry point (lifecycle/tick events), `FabricPlatform`, `fabric.mod.json` |
 | `neoforge/` | NeoForge entry point (lifecycle/tick events), `NeoForgePlatform`, `neoforge.mods.toml` |
 | `build-logic/` | Gradle scripts shared by the three projects |
+| `docker/`, `compose.yaml`, `.devcontainer/` | The dev image, its tasks and the VS Code dev container |
 | `web/` | Web UI (SvelteKit) |
 | `scripts/` | Minecraft texture extraction, default banner and mod icon, sample players and screenshots ([README](scripts/README.md)) |
 

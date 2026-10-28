@@ -5,6 +5,16 @@ plugins {
 	id 'net.neoforged.moddev' version '2.0.148' apply false
 }
 
+// Java, Node and Python versions are set once, in .tool-versions; the dev image installs exactly these (docker/).
+// Java is the version the mod is compiled for and requires (toolchain, release flag, mod metadata).
+def javaLine = file('.tool-versions').readLines().find { it.trim().startsWith('java ') }
+if (javaLine == null) {
+	throw new GradleException('.tool-versions has no "java <version>" line')
+}
+allprojects {
+	ext.java_version = javaLine.trim().split(/\s+/)[1]
+}
+
 // The web UI is built once here and packed into both loader JARs (see multiloader-loader.gradle).
 
 def isWindows = System.getProperty('os.name').toLowerCase().contains('windows')

@@ -4,13 +4,16 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 import { serverIcon } from './server-icon-plugin.js';
 
+// The running mod; in compose.yaml the dev server's container.
+const api = process.env.STATS_API_URL ?? 'http://127.0.0.1:25580';
+
 export default defineConfig({
 	server: {
 		port: 5173,
 		proxy: {
 			// The mod's API and its Mojang proxy (skin cache, default skins for players without one of their own).
-			'/api': 'http://127.0.0.1:25580',
-			'/mojang': 'http://127.0.0.1:25580'
+			'/api': api,
+			'/mojang': api
 		}
 	},
 	preview: {

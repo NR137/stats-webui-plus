@@ -6,7 +6,12 @@ plugins {
 }
 
 neoForge {
-	neoFormVersion = neo_form_version
+	enable {
+		neoFormVersion = neo_form_version
+		// Compile against Minecraft's own (unobfuscated) classes instead of decompiling and recompiling the game: that
+		// step needs an 8 GB heap and minutes, and only produced sources for the IDE (which decompiles on the fly).
+		disableRecompilation = true
+	}
 	// Puts Minecraft on the test classpath too, for the classes that touch its types.
 	addModdingDependenciesTo(sourceSets.test)
 }

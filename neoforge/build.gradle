@@ -18,8 +18,14 @@ sourceSets {
 }
 
 neoForge {
-	// To change the versions see the gradle.properties file
-	version = neoforge_version
+	enable {
+		// To change the versions see the gradle.properties file
+		version = neoforge_version
+		// NeoForge's binary patches on Minecraft's own (unobfuscated) classes instead of decompiling, source-patching and
+		// recompiling the game: that step needs an 8 GB heap and minutes, and only produced sources for the IDE (which
+		// decompiles on the fly).
+		disableRecompilation = true
+	}
 
 	runs {
 		configureEach {
