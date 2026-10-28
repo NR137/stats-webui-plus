@@ -32,6 +32,11 @@ export default defineConfig({
 			paths: {
 				relative: false
 			},
+			// The mod version from the Gradle build (yarnBuild), so the same sources give the same files; SvelteKit's
+			// default is the build time. yarn dev on its own keeps that default.
+			version: {
+				name: process.env.STATS_WEBUI_VERSION
+			},
 			adapter: adapter({
 				pages: 'build',
 				assets: 'build',

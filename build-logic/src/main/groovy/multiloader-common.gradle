@@ -15,6 +15,9 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 tasks.withType(Jar).configureEach {
+	// Reproducible JARs: no file timestamps and a fixed order, so the same sources give byte-identical JARs.
+	preserveFileTimestamps = false
+	reproducibleFileOrder = true
 	from(rootProject.file('LICENSE')) {
 		rename { "${it}_${mod_id}" }
 	}

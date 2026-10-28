@@ -15,6 +15,15 @@ allprojects {
 	ext.java_version = javaLine.trim().split(/\s+/)[1]
 }
 
+// ModDevGradle runs NeoForm's helper (Minecraft artifacts, asset downloads) on a Java 21 of its own by default, which
+// Gradle would download; ours works too, so .tool-versions stays the only Java.
+subprojects {
+	tasks.withType(net.neoforged.nfrtgradle.NeoFormRuntimeTask).configureEach {
+		javaExecutable = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
+			.map { it.executablePath.asFile.absolutePath }
+	}
+}
+
 // The web UI is built once here and packed into both loader JARs (see multiloader-loader.gradle).
 
 def isWindows = System.getProperty('os.name').toLowerCase().contains('windows')
@@ -53,6 +62,9 @@ tasks.register('extractMcTextures', Exec) {
 tasks.register('yarnBuild', Exec) {
 	dependsOn yarnInstall, extractMcTextures
 	workingDir file('web')
+	def appVersion = "${project.mod_version}+${project.minecraft_version}"
+	environment 'STATS_WEBUI_VERSION', appVersion
+	inputs.property 'appVersion', appVersion
 	if (isWindows) {
 		commandLine 'cmd', '/c', 'corepack', 'yarn', 'build'
 	} else {
