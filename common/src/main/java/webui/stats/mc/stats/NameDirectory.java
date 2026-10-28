@@ -27,6 +27,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.LongSupplier;
 
 public final class NameDirectory {
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
@@ -40,6 +41,9 @@ public final class NameDirectory {
 	});
 	private static final Set<UUID> PENDING = ConcurrentHashMap.newKeySet();
 	private static final Map<UUID, Long> FAILED_AT = new ConcurrentHashMap<>();
+	// Replaced by tests with a fake Mojang and their own clock.
+	static volatile String profileBase = "https://sessionserver.mojang.com/session/minecraft/profile/";
+	static volatile LongSupplier clock = System::currentTimeMillis;
 	private final Map<UUID, String> names = new HashMap<>();
 
 	public void put(UUID uuid, String name) {
@@ -85,7 +89,7 @@ public final class NameDirectory {
 	 * Resolved names are cached on disk and pushed to {@link StatsCache#onNameResolved}.
 	 */
 	public void resolveMissingAsync(Set<UUID> uuids) {
-		long now = System.currentTimeMillis();
+		long now = clock.getAsLong();
 		for (UUID uuid : uuids) {
 			// Offline-mode UUIDs are version 3; Mojang only knows version 4 (real accounts).
 			if (knows(uuid) || uuid.version() != 4) {
@@ -105,7 +109,7 @@ public final class NameDirectory {
 		try {
 			String name = fetchMojang(uuid);
 			if (name == null) {
-				FAILED_AT.put(uuid, System.currentTimeMillis());
+				FAILED_AT.put(uuid, clock.getAsLong());
 				return;
 			}
 			FAILED_AT.remove(uuid);
@@ -172,7 +176,7 @@ public final class NameDirectory {
 	private static String fetchMojang(UUID uuid) {
 		String compact = uuid.toString().replace("-", "");
 		HttpRequest request = HttpRequest.newBuilder()
-			.uri(URI.create("https://sessionserver.mojang.com/session/minecraft/profile/" + compact))
+			.uri(URI.create(profileBase + compact))
 			.timeout(Duration.ofSeconds(6))
 			.header("User-Agent", McStatsWebui.MOD_ID)
 			.GET()

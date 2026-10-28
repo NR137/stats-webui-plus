@@ -207,7 +207,9 @@ reworked web UI. All changes below are relative to mc-stats-webui 1.2.1.
   skins (and default skins) work there as on the real site.
 - **Tests:** unit and HTTP tests for the shared Java code (`./gradlew :common:test`: config, ranking rules, session
   log, stats loading and API data, web server) and Vitest tests for the web UI (`corepack yarn test`: tiers,
-  translations, API client, language detection), with a fake Mojang server for the skin proxy. A smoke test
+  translations, API client, language detection), with a fake Mojang server for the skin proxy and the name lookups.
+  Game tests on Fabric and NeoForge (`./gradlew :fabric:runGameTest :neoforge:runGameTestServer`) let a mock player
+  join, leave, raise stats and earn and lose advancements, and check that each reaches the stats cache. A smoke test
   (`scripts/smoke_test/`) runs the built JARs on the official Fabric and NeoForge servers with sample players and
   checks the API, the web UI from the JAR and, in headless Chromium, navigation, languages and the phone layout. The
   new `tests` workflow runs all of them on every pull request and push to `main`, and the release workflow runs them

@@ -31,6 +31,24 @@ loom {
 	}
 }
 
+// Game tests with a mock player on a real server: ./gradlew :fabric:runGameTest. The tests themselves are shared with
+// NeoForge (common/src/gametest); src/gametest only registers them. Not part of the mod JAR.
+fabricApi {
+	configureTests {
+		createSourceSet = true
+		modId = "${mod_id}_gametest"
+		enableGameTests = true
+		enableClientGameTests = false
+		eula = true
+	}
+}
+
+sourceSets {
+	gametest {
+		java.srcDir(rootProject.file('common/src/gametest/java'))
+	}
+}
+
 // Implement mcgradleconventions loader attribute
 def loaderAttribute = Attribute.of('io.github.mcgradleconventions.loader', String)
 ['apiElements', 'runtimeElements', 'includeInternal', 'modCompileClasspath'].each { variant ->

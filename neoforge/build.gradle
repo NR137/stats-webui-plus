@@ -7,6 +7,16 @@ base {
 	archivesName = "${archives_base_name}-neoforge"
 }
 
+// Game tests with a mock player on a real server: ./gradlew :neoforge:runGameTestServer. The tests themselves are
+// shared with Fabric (common/src/gametest); src/gametest only registers them. Not part of the mod JAR.
+sourceSets {
+	gametest {
+		java.srcDir(rootProject.file('common/src/gametest/java'))
+		compileClasspath += sourceSets.main.output
+		runtimeClasspath += sourceSets.main.output
+	}
+}
+
 neoForge {
 	// To change the versions see the gradle.properties file
 	version = neoforge_version
@@ -25,13 +35,22 @@ neoForge {
 			programArgument '--nogui'
 			gameDirectory = this.mkdir(this.file('runs/server'))
 		}
+		gameTestServer {
+			type = 'gameTestServer'
+			sourceSet = sourceSets.gametest
+			gameDirectory = this.mkdir(this.file('build/run/gameTest'))
+			systemProperty 'neoforge.enabledGameTestNamespaces', mod_id
+		}
 	}
 
 	mods {
 		"${mod_id}" {
 			sourceSet sourceSets.main
+			sourceSet sourceSets.gametest
 		}
 	}
+
+	addModdingDependenciesTo(sourceSets.gametest)
 }
 
 // Implement mcgradleconventions loader attribute

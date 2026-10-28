@@ -136,6 +136,12 @@ cd web && corepack yarn test   # web UI (src/**/*.test.ts); corepack yarn check 
 
 The web tests need `web/src/lib/mc/advancementLang.json`, which `./gradlew extractMcTextures` creates.
 
+Game tests run a mock player on a real game test server of each loader: joining and leaving, stats and advancements reaching the stats cache through the mixins (`common/src/gametest`, registered in `fabric/src/gametest` and `neoforge/src/gametest`):
+
+```bash
+./gradlew :fabric:runGameTest :neoforge:runGameTestServer
+```
+
 The smoke test runs the built JARs on the official Fabric and NeoForge servers with sample players and checks the API and, with `--browser`, the web UI in a headless browser: see [`scripts/README.md`](scripts/README.md#smoke-test).
 
 The `tests` workflow (`.github/workflows/tests.yml`) runs all of them on every pull request and push to `main`, and before every release.
