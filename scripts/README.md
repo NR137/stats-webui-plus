@@ -6,6 +6,7 @@
 | `art/` | `banner.py` draws the default header image the mod ships, `icon.py` the mod icon. Both write into `common/src/main/resources/assets/stats_webui_plus/`. | Pillow |
 | `sample_data/` | `sample_data.py` writes nine sample players into the Fabric dev server, for screenshots. | Python 3 only |
 | `screenshots/` | `take_screenshots.py` takes every image in [`screenshots/`](../screenshots) from the dev server. | Playwright |
+| `smoke_test/` | `smoke_test.py` runs the built JAR on the official Fabric or NeoForge server with the sample players and checks it; see below. | Python 3 only; Playwright for `--browser` |
 
 The build needs nothing but Python 3. For the other scripts, one shared environment holds Pillow and Playwright (from the repository root):
 
@@ -40,6 +41,20 @@ On Windows the interpreter is `scripts\.venv\Scripts\python`. Run the scripts wi
    scripts/.venv/bin/python scripts/screenshots/take_screenshots.py
    ```
    `take_screenshots.py player player-de` takes just those. It waits for each page's data and skins; a full run takes about a minute.
+
+## Smoke test
+
+Checks the release JARs the way a server owner runs them, on the official Fabric server (with Fabric API) or NeoForge server for the versions in `gradle.properties`:
+
+```
+./gradlew build
+python3 scripts/smoke_test/smoke_test.py fabric
+python3 scripts/smoke_test/smoke_test.py neoforge
+```
+
+It writes the sample players (`sample_data/`), starts the server and checks over HTTP that the mod loaded (no mixin errors in the log), that the API answers for every player, board and advancement, that the web UI is served from the JAR, and that a changed config applies while the server runs. Then it stops the server. With `--browser` (run with the Playwright environment, e.g. `scripts/.venv/bin/python scripts/smoke_test/smoke_test.py fabric --browser`) it also opens the web UI in headless Chromium: navigation, direct links and reloads, "not found" pages, the four languages and the phone layout.
+
+The servers and their downloads are kept in `scripts/.cache/smoke/`; the world, config and mods are written fresh every run. A run takes under a minute once the server is downloaded. The `tests` workflow runs both loaders with `--browser` on every pull request and before every release.
 
 **NeoForge instead of Fabric:** the same steps work with the NeoForge dev server. Use `./gradlew :neoforge:runServer` in steps 2 and 4 (its folder is `neoforge/runs/server`; its dev console doesn't take commands, so stop it with Ctrl+C), and give `sample_data.py` that folder:
 

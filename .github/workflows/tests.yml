@@ -97,3 +97,122 @@ jobs:
       - name: test
         working-directory: web
         run: corepack yarn test
+
+  # The release JARs, once for both smoke tests.
+  jars:
+    name: build jars
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v6
+
+      - name: validate gradle wrapper
+        uses: gradle/actions/wrapper-validation@v6
+
+      - name: setup jdk
+        uses: actions/setup-java@v5
+        with:
+          java-version: '25'
+          distribution: 'microsoft'
+
+      - name: setup gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: setup node
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+
+      - name: enable corepack
+        run: corepack enable
+
+      - name: cache yarn packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.yarn/berry/cache
+          key: yarn-${{ hashFiles('web/yarn.lock') }}
+          restore-keys: yarn-
+
+      # The same texture cache as the release workflow (see the comment there).
+      - name: cache texture downloads
+        uses: actions/cache@v4
+        with:
+          path: scripts/.cache
+          key: mc-textures-${{ hashFiles('gradle.properties', 'scripts/textures/extract_mc_textures.py') }}
+          restore-keys: mc-textures-
+
+      - name: build
+        run: ./gradlew build
+
+      # sample_data.py reads the advancements from the client JAR.
+      - name: keep jars
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-jars
+          path: |
+            fabric/build/libs/*.jar
+            neoforge/build/libs/*.jar
+            scripts/.cache/minecraft/*/minecraft-client.jar
+          retention-days: 1
+
+  # The built JAR on the official Fabric and NeoForge server with the sample players, checked over HTTP and in a
+  # headless browser (scripts/smoke_test).
+  smoke:
+    name: smoke test (${{ matrix.loader }})
+    needs: jars
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        loader: [fabric, neoforge]
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v6
+
+      - name: setup jdk
+        uses: actions/setup-java@v5
+        with:
+          java-version: '25'
+          distribution: 'microsoft'
+
+      - name: get jars
+        uses: actions/download-artifact@v4
+        with:
+          name: smoke-jars
+
+      # The server, its libraries and Minecraft; the world, config and mods are written fresh every run.
+      - name: cache server
+        uses: actions/cache@v4
+        with:
+          path: scripts/.cache/smoke
+          key: smoke-${{ matrix.loader }}-${{ hashFiles('gradle.properties') }}
+
+      - name: setup python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: cache browser
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ hashFiles('scripts/requirements.txt') }}
+
+      # Playwright and its headless Chromium, for the browser checks (scripts/smoke_test/browser_checks.py).
+      - name: install playwright
+        run: |
+          pip install -r scripts/requirements.txt
+          python -m playwright install --with-deps --only-shell chromium
+
+      - name: smoke test
+        run: python scripts/smoke_test/smoke_test.py ${{ matrix.loader }} --browser
+
+      - name: attach server log
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-log-${{ matrix.loader }}
+          path: scripts/.cache/smoke/*/smoke-test.log
+          retention-days: 7

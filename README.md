@@ -136,7 +136,9 @@ cd web && corepack yarn test   # web UI (src/**/*.test.ts); corepack yarn check 
 
 The web tests need `web/src/lib/mc/advancementLang.json`, which `./gradlew extractMcTextures` creates.
 
-The `tests` workflow (`.github/workflows/tests.yml`) runs both on every pull request and push to `main`, and before every release.
+The smoke test runs the built JARs on the official Fabric and NeoForge servers with sample players and checks the API and, with `--browser`, the web UI in a headless browser: see [`scripts/README.md`](scripts/README.md#smoke-test).
+
+The `tests` workflow (`.github/workflows/tests.yml`) runs all of them on every pull request and push to `main`, and before every release.
 
 A pre-commit hook runs the same tests for the parts a commit touches. Turn it on once per clone with `git config core.hooksPath .githooks`; `git commit --no-verify` skips it.
 

@@ -64,6 +64,18 @@ public final class MojangProxy {
 	};
 	// Requests to Mojang under way, so concurrent asks for the same URL (a head and the 3D skin) share one.
 	private final Map<URI, CompletableFuture<Fetched>> inFlight = new ConcurrentHashMap<>();
+	private final String profileBase;
+	private final String textureBase;
+
+	public MojangProxy() {
+		this("https://sessionserver.mojang.com/session/minecraft/profile/", "https://textures.minecraft.net/texture/");
+	}
+
+	/** With other servers in place of Mojang's, for tests; both bases end with "/". */
+	MojangProxy(String profileBase, String textureBase) {
+		this.profileBase = profileBase;
+		this.textureBase = textureBase;
+	}
 
 	public void handle(HttpExchange exchange) throws IOException {
 		String method = exchange.getRequestMethod();
@@ -254,7 +266,7 @@ public final class MojangProxy {
 	}
 
 	/** The skin and cape a profile response points to, as proxy targets. */
-	private static List<URI> textureUrls(byte[] profile) {
+	private List<URI> textureUrls(byte[] profile) {
 		List<URI> urls = new ArrayList<>();
 		try {
 			JsonObject payload = texturesPayload(JsonParser.parseString(new String(profile, StandardCharsets.UTF_8)).getAsJsonObject());
@@ -302,11 +314,11 @@ public final class MojangProxy {
 	private record Fetched(int status, String contentType, byte[] body) {
 	}
 
-	private static boolean isTexture(URI target) {
-		return target.getHost().contains("textures.minecraft.net");
+	private boolean isTexture(URI target) {
+		return target.toString().startsWith(textureBase);
 	}
 
-	private static URI resolve(String path) {
+	private URI resolve(String path) {
 		if (path.startsWith(PROFILE_PATH)) {
 			String uuid = path.substring(PROFILE_PATH.length());
 			if (!UUID_PATTERN.matcher(uuid).matches()) {
@@ -316,14 +328,14 @@ public final class MojangProxy {
 			String dashed = uuid.length() == 32
 				? uuid.replaceFirst("(.{8})(.{4})(.{4})(.{4})(.{12})", "$1-$2-$3-$4-$5")
 				: uuid;
-			return URI.create("https://sessionserver.mojang.com/session/minecraft/profile/" + dashed.toLowerCase(Locale.ROOT));
+			return URI.create(profileBase + dashed.toLowerCase(Locale.ROOT));
 		}
 		if (path.startsWith(TEXTURE_PATH)) {
 			String hash = path.substring(TEXTURE_PATH.length());
 			if (!TEXTURE.matcher(hash).matches()) {
 				return null;
 			}
-			return URI.create("https://textures.minecraft.net/texture/" + hash.toLowerCase(Locale.ROOT));
+			return URI.create(textureBase + hash.toLowerCase(Locale.ROOT));
 		}
 		return null;
 	}
