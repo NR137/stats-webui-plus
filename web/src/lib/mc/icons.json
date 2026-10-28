@@ -1924,7 +1924,7 @@
 	"minecraft:redstone_torch": "/mc/block/redstone_torch.png",
 	"minecraft:redstone_torch_off": "/mc/block/redstone_torch_off.png",
 	"minecraft:redstone_wall_torch": "/mc/block/redstone_torch.png",
-	"minecraft:redstone_wire": "/mc/item/redstone.png",
+	"minecraft:redstone_wire": "/mc/inv/redstone_wire.png",
 	"minecraft:reinforced_deepslate": "/mc/iso/reinforced_deepslate.png",
 	"minecraft:repeater": "/mc/item/repeater.png",
 	"minecraft:repeater_on": "/mc/block/repeater_on.png",
