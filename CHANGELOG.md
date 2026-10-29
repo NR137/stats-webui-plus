@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 <!-- Replace "unreleased" with the release date (YYYY-MM-DD) before running the release workflow. -->
-## [1.3.0] - unreleased
+## [1.3.0] - 2026-10-30
 
 First release of **Stats WebUI Plus**, a fork of [mc-stats-webui](https://github.com/borrageiros/mc-stats-webui) by
 borrageiros. It now runs on Fabric and NeoForge, puts almost no load on the Minecraft server, and comes with a
