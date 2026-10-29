@@ -32,8 +32,11 @@ public final class NeoForgeGameTests {
 
 	@SubscribeEvent
 	static void registerTests(RegisterGameTestsEvent event) {
-		Holder<TestEnvironmentDefinition<?>> environment = event.registerEnvironment(McStatsWebui.id("default"));
+		Holder<TestEnvironmentDefinition<?>> shared = event.registerEnvironment(McStatsWebui.id("default"));
+		// See LiveTests.ISOLATED: a batch of their own.
+		Holder<TestEnvironmentDefinition<?>> isolated = event.registerEnvironment(McStatsWebui.id("isolated"));
 		for (String name : LiveTests.all().keySet()) {
+			Holder<TestEnvironmentDefinition<?>> environment = LiveTests.ISOLATED.contains(name) ? isolated : shared;
 			ResourceKey<Consumer<GameTestHelper>> function = ResourceKey.create(Registries.TEST_FUNCTION, McStatsWebui.id(name));
 			TestData<Holder<TestEnvironmentDefinition<?>>> data =
 				new TestData<>(environment, Identifier.withDefaultNamespace("empty"), MAX_TICKS, 1, true);

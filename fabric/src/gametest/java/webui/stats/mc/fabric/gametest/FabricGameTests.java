@@ -33,7 +33,8 @@ public class FabricGameTests {
 		LiveTests.all().get("revoked_advancement_leaves_the_cache").accept(helper);
 	}
 
-	@GameTest(maxTicks = MAX_TICKS)
+	// See LiveTests.ISOLATED; the environment is data/stats_webui_plus_gametest/test_environment/isolated.json.
+	@GameTest(maxTicks = MAX_TICKS, environment = "stats_webui_plus_gametest:isolated")
 	public void saveIntervalAndBusyServer(GameTestHelper helper) {
 		LiveTests.all().get("save_interval_and_busy_server").accept(helper);
 	}

@@ -43,6 +43,12 @@ public final class LiveTests {
 	private LiveTests() {
 	}
 
+	/**
+	 * Tests that block the server thread or change the shared config. Each loader puts them in a test environment of
+	 * their own: game tests of one environment run at the same time, environments one after another.
+	 */
+	public static final java.util.Set<String> ISOLATED = java.util.Set.of("save_interval_and_busy_server");
+
 	/** Test name -> test, in the order they run. */
 	public static Map<String, Consumer<GameTestHelper>> all() {
 		Map<String, Consumer<GameTestHelper>> tests = new LinkedHashMap<>();
@@ -182,12 +188,17 @@ public final class LiveTests {
 					"saved stats lack the jumps: " + stats);
 			})
 			.thenExecute(() -> {
-				// An API request while the server thread is stuck, like in a lag spike.
+				// An API request while the server thread is stuck, like in a lag spike: blocked until the API has answered
+				// (it gives up after 5 s), at most 20 s on a slow machine.
 				request.set(get("/api/players"));
-				try {
-					Thread.sleep(8_000);
-				} catch (InterruptedException e) {
-					Thread.currentThread().interrupt();
+				long deadline = System.nanoTime() + Duration.ofSeconds(20).toNanos();
+				while (!request.get().isDone() && System.nanoTime() < deadline) {
+					try {
+						Thread.sleep(50);
+					} catch (InterruptedException e) {
+						Thread.currentThread().interrupt();
+						break;
+					}
 				}
 			})
 			.thenWaitUntil(() -> {
