@@ -1,7 +1,7 @@
 name: dev image
 description: >-
   Builds the dev image (docker/Dockerfile) with the runner's user IDs and restores the Gradle and Yarn caches, so the
-  next steps can run `docker compose run --rm -T dev docker/tasks.sh <task>` like on a developer's machine.
+  next steps can run `docker compose run --rm -T dev ./tasks.sh <task>` like on a developer's machine.
 
 runs:
   using: composite
@@ -14,6 +14,8 @@ runs:
         echo "USER_GID=$(id -g)" >> "$GITHUB_ENV"
         echo "GRADLE_CACHE=$RUNNER_TEMP/gradle-home" >> "$GITHUB_ENV"
         echo "YARN_CACHE=$RUNNER_TEMP/yarn-cache" >> "$GITHUB_ENV"
+        # The image is built below with the Actions layer cache; compose must not build it again.
+        echo "DEV_IMAGE_POLICY=never" >> "$GITHUB_ENV"
         mkdir -p "$RUNNER_TEMP/gradle-home" "$RUNNER_TEMP/yarn-cache"
 
     # Gradle's downloads and Minecraft's decompiled sources (NeoForm), which take a few minutes to make.
@@ -47,5 +49,5 @@ runs:
         build-args: |
           USER_UID=${{ env.USER_UID }}
           USER_GID=${{ env.USER_GID }}
-        cache-from: type=gha,scope=dev-image
-        cache-to: type=gha,scope=dev-image,mode=max
+        cache-from: type=gha,scope=dev-image-${{ runner.arch }}
+        cache-to: type=gha,scope=dev-image-${{ runner.arch }},mode=max

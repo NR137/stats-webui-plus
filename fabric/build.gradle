@@ -35,6 +35,8 @@ loom {
 			ideConfigGenerated(false)
 			runDir('build/run/smokeClient')
 			programArgs('--quickPlaySingleplayer', 'smoke')
+			// With the test mod, for the world switch (common/src/gametest/.../WorldSwitcher.java).
+			source('gametest')
 		}
 	}
 }

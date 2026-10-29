@@ -12,7 +12,7 @@
 	"updateRemoteUserUID": true,
 	// Dev server (game, web UI, sample data web UI) and the web UI's hot reload server; others are forwarded when used.
 	"forwardPorts": [25565, 25580, 25590, 5173],
-	"postCreateCommand": "git config core.hooksPath .githooks && docker/tasks.sh web-texts && cd web && corepack yarn install",
+	"postCreateCommand": "git config core.hooksPath .githooks && ./tasks.sh web-texts && cd web && corepack yarn install",
 	"customizations": {
 		"vscode": {
 			"extensions": [

@@ -14,7 +14,7 @@ All of them run in the dev image (`docker/Dockerfile`, see the main README), who
 
 1. Build once, so the web UI, the Minecraft textures and the client JAR in `scripts/.cache/` exist:
    ```
-   docker compose run --rm dev docker/tasks.sh build
+   docker compose run --rm dev ./tasks.sh build
    ```
 2. Start the Fabric dev server, so it creates `fabric/runs/server`. The first start stops until you accept Mojang's EULA by setting `eula=true` in `fabric/runs/server/eula.txt`; the next start writes the default config. Type `stop` (or press Ctrl+C) to end it.
    ```
@@ -47,22 +47,34 @@ The players and their progress are the same every run (fixed random seed); only 
 Checks the release JARs the way a server owner runs them, on the official Fabric server (with Fabric API) or NeoForge server for the versions in `gradle.properties`:
 
 ```
-docker compose run --rm dev docker/tasks.sh build
-docker compose run --rm dev docker/tasks.sh smoke            # both loaders
-docker compose run --rm dev docker/tasks.sh smoke neoforge   # one
+docker compose run --rm dev ./tasks.sh build
+docker compose run --rm dev ./tasks.sh smoke            # both loaders
+docker compose run --rm dev ./tasks.sh smoke neoforge   # one
 ```
 
-It writes the sample players (`sample_data/`), starts the server and checks over HTTP that the mod loaded (no mixin errors in the log), that the API answers for every player, board and advancement, that the web UI is served from the JAR, and that a changed config applies while the server runs. Then it stops the server. With `--browser` (which `docker/tasks.sh smoke` passes) it also opens the web UI in headless Chromium: navigation, direct links and reloads, "not found" pages, the four languages and the phone layout. `python scripts/smoke_test/smoke_test.py fabric` alone skips the browser.
+It writes the sample players (`sample_data/`), starts the server and checks over HTTP that the mod loaded (no mixin errors in the log), that the API answers for every player, board and advancement, that the web UI is served from the JAR, and that a changed config applies while the server runs. Then it stops the server. With `--browser` (which `./tasks.sh smoke` passes) it also opens the web UI in headless Chromium: navigation, direct links and reloads, "not found" pages, the four languages and the phone layout. `python scripts/smoke_test/smoke_test.py fabric` alone skips the browser.
 
-It also changes the config while the server runs (an address, then the port, which must move the web server) and restarts the server with `world` pointing at another folder with three of the players.
+It also changes the config while the server runs (an address, then the port, which must move the web server), adds a data pack with an advancement and runs `/reload` (the advancement must appear, and disappear again after removing the pack and another `/reload`), and restarts the server with `world` pointing at another folder with three of the players.
 
 The servers and their downloads are kept in `scripts/.cache/smoke/`; the world, config and mods are written fresh every run. A run takes under a minute once the server is downloaded. The `tests` workflow runs both loaders with `--browser` on every pull request and before every release.
 
 ## Singleplayer test
 
-`client_test.py` checks the mod on a client's integrated server. It starts each loader's dev client (`./gradlew :<loader>:runSmokeClient`, run folder `<loader>/build/run/smokeClient/`) on a virtual screen (Xvfb, OpenGL in software through EGL), which opens a copy of the smoke test's world directly (`--quickPlaySingleplayer`). The integrated server's web UI must answer, list the world's players and show the client's own player as online with a real first join; then the client is closed and its log checked for errors from the mod or its mixins.
+`client_test.py` checks the mod on a client's integrated server. It starts each loader's dev client (`./gradlew :<loader>:runSmokeClient`, run folder `<loader>/build/run/smokeClient/`) on a virtual screen (Xvfb, OpenGL in software through EGL), which opens a copy of the smoke test's world directly (`--quickPlaySingleplayer`). The integrated server's web UI must answer, list the world's players and show the client's own player as online with a real first join. Then the client leaves that world and opens a fresh one without any player data (the realistic singleplayer case) while four threads keep calling the API; afterwards only the client's own player may be listed, online with a real first join. That covers a fixed bug: a request while the integrated server stopped could load the stats from the wrong world folder. The world switch is done by a test-only helper in the client (`common/src/gametest/.../WorldSwitcher.java`). Finally the client is closed and its log checked for errors from the mod or its mixins.
 
 ```
-docker compose run --rm dev docker/tasks.sh client            # both loaders; needs the smoke test first
-docker compose run --rm dev docker/tasks.sh client neoforge   # one
+docker compose run --rm dev ./tasks.sh client            # both loaders; needs the smoke test first
+docker compose run --rm dev ./tasks.sh client neoforge   # one
 ```
+
+## Load test
+
+`load_test/load_test.py` puts the built JAR on the official server (as the smoke test does) with many generated players (copies of the sample players) and runs two phases of many parallel visitors calling a mix of pages and API endpoints: with `refreshCooldownMs` at its default of 15 s, and at 0 (a refresh on every request, the worst case). It reports requests per second, response times (median, 95th and 99th percentile), `503`s and the game's milliseconds per tick (`/tick query`) idle and under load, plus the machine (CPU, CPU and memory limit), to `build/load-test/<loader>.json`.
+
+```
+docker compose run --rm dev ./tasks.sh build
+docker compose --profile tools run --rm load                                   # Fabric, 2 CPUs, 4 GB
+LOADER=neoforge LOAD_CPUS=4 LOAD_ARGS="--players 500 --clients 100" docker compose --profile tools run --rm load
+```
+
+The `load` service gives the container a fixed share of CPUs and memory, so runs on different machines are comparable in resources (the CPU model is in the report, since its speed still differs). The `load test` workflow (started by hand) runs both loaders on GitHub's x64 and ARM runners and writes the tables into the job summaries. It only fails if more than 1 % of the requests fail. Nobody is online during the test, so a refresh has no online players' stats to copy; the server thread's share of a refresh with many online players isn't measured.

@@ -79,7 +79,7 @@ jobs:
           echo "Release notes: $(wc -l < release-notes.md) lines"
 
       - name: build
-        run: docker compose run --rm -T dev docker/tasks.sh build
+        run: docker compose run --rm -T dev ./tasks.sh build
 
       - name: collect jars
         env:

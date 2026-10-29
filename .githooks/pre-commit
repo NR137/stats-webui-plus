@@ -21,15 +21,15 @@ for file in $staged; do
 	esac
 done
 
-# In the dev container directly, otherwise through Docker (docker/tasks.sh has the commands). With
+# In the dev container directly, otherwise through Docker (./tasks.sh has the commands). With
 # `git config statswebui.hookTools local` this clone uses locally installed tools instead (see .tool-versions);
 # `git config --unset statswebui.hookTools` goes back to Docker.
 tools=$(git config --get statswebui.hookTools || echo docker)
 run() {
 	if [ -n "$STATS_WEBUI_DEV_CONTAINER" ] || [ "$tools" = local ]; then
-		docker/tasks.sh "$@"
+		./tasks.sh "$@"
 	elif docker info >/dev/null 2>&1; then
-		docker compose run --rm -T dev docker/tasks.sh "$@"
+		docker compose run --rm -T dev ./tasks.sh "$@"
 	else
 		cat >&2 <<'EOF'
 pre-commit: Docker is not running, so the tests can't run in the dev image. Either

@@ -17,12 +17,17 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import com.mojang.authlib.GameProfile;
+import io.netty.channel.embedded.EmbeddedChannel;
 import net.minecraft.advancements.AdvancementHolder;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.network.Connection;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.network.CommonListenerCookie;
 import net.minecraft.stats.Stats;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.storage.LevelResource;
@@ -36,8 +41,8 @@ import webui.stats.mc.web.StatsHttpServer;
 /**
  * What only a running server with a player shows: joins and leaves through the loader's events, stats and
  * advancements through the mixins, and both reaching the stats cache the API serves (README, "Stats cache"). Each
- * loader registers these as game tests (fabric/src/gametest, neoforge/src/gametest); a mock player stands in for a
- * real one.
+ * loader registers these as game tests (fabric/src/gametest, neoforge/src/gametest); a test player logs in through the server's
+ * own login path (see joinPlayer).
  */
 public final class LiveTests {
 	private LiveTests() {
@@ -81,7 +86,7 @@ public final class LiveTests {
 
 	static void joinAndLeave(GameTestHelper helper) {
 		long before = System.currentTimeMillis();
-		ServerPlayer player = helper.makeMockServerPlayerInLevel();
+		ServerPlayer player = joinPlayer(helper, "join_leave");
 		UUID uuid = player.getUUID();
 		helper.startSequence()
 			.thenWaitUntil(() -> {
@@ -101,7 +106,7 @@ public final class LiveTests {
 	}
 
 	static void statsReachTheCache(GameTestHelper helper) {
-		ServerPlayer player = helper.makeMockServerPlayerInLevel();
+		ServerPlayer player = joinPlayer(helper, "stats");
 		player.awardStat(Stats.CUSTOM.get(Stats.JUMP), 7);
 		player.awardStat(Stats.BLOCK_MINED.get(Blocks.DIAMOND_ORE), 3);
 		AtomicReference<CompletableFuture<StatsCache.Snapshot>> refresh = new AtomicReference<>();
@@ -126,7 +131,7 @@ public final class LiveTests {
 	}
 
 	static void advancementsReachTheCache(GameTestHelper helper) {
-		ServerPlayer player = helper.makeMockServerPlayerInLevel();
+		ServerPlayer player = joinPlayer(helper, "advancements");
 		AdvancementHolder root = advancement(helper, "story/root");
 		player.getAdvancements().award(root, "crafting_table");
 		AtomicReference<CompletableFuture<StatsCache.Snapshot>> refresh = new AtomicReference<>();
@@ -142,7 +147,7 @@ public final class LiveTests {
 	}
 
 	static void revokedAdvancementLeavesTheCache(GameTestHelper helper) {
-		ServerPlayer player = helper.makeMockServerPlayerInLevel();
+		ServerPlayer player = joinPlayer(helper, "revoke");
 		AdvancementHolder root = advancement(helper, "story/root");
 		player.getAdvancements().award(root, "crafting_table");
 		AtomicReference<CompletableFuture<StatsCache.Snapshot>> refresh = new AtomicReference<>();
@@ -175,7 +180,7 @@ public final class LiveTests {
 		write(config, changed.toString());
 		StatsHttpServer.getInstance().reloadConfig("game test");
 
-		ServerPlayer player = helper.makeMockServerPlayerInLevel();
+		ServerPlayer player = joinPlayer(helper, "save_busy");
 		player.awardStat(Stats.CUSTOM.get(Stats.JUMP), 3);
 		Path statsFile = StatsService.statsDirectory(server.getWorldPath(LevelResource.ROOT)).resolve(player.getUUID() + ".json");
 		AtomicReference<CompletableFuture<HttpResponse<String>>> request = new AtomicReference<>();
@@ -263,6 +268,22 @@ public final class LiveTests {
 		AdvancementHolder holder = helper.getLevel().getServer().getAdvancements().get(Identifier.withDefaultNamespace(path));
 		helper.assertTrue(holder != null, "no advancement minecraft:" + path);
 		return holder;
+	}
+
+	/**
+	 * A player who logs in like a real client: the server's own login path (PlayerList.placeNewPlayer, as after a
+	 * client's login) with an in-memory connection. Minecraft 26.3 marks GameTestHelper.makeMockServerPlayerInLevel,
+	 * which does the same, for removal without a successor.
+	 */
+	private static ServerPlayer joinPlayer(GameTestHelper helper, String name) {
+		MinecraftServer server = helper.getLevel().getServer();
+		GameProfile profile = new GameProfile(UUID.randomUUID(), "test_" + name);
+		CommonListenerCookie cookie = CommonListenerCookie.createInitial(profile, false);
+		ServerPlayer player = new ServerPlayer(server, helper.getLevel(), profile, cookie.clientInformation());
+		Connection connection = new Connection(PacketFlow.SERVERBOUND);
+		new EmbeddedChannel(connection);
+		server.getPlayerList().placeNewPlayer(connection, player, cookie);
+		return player;
 	}
 
 	/** Disconnects the player the way a kick or quit does, through the connection. */

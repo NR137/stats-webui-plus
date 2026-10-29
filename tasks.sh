@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Build and test commands, in one place for compose.yaml, the CI workflows and the pre-commit hook. Runs inside the
-# dev image (docker/Dockerfile), e.g.: docker compose run --rm dev docker/tasks.sh test
+# The project's build and test commands, in one place for you, compose.yaml, the CI workflows and the pre-commit hook.
+# Usually run in the dev image (docker/Dockerfile): docker compose run --rm dev ./tasks.sh test. Inside the VS Code dev
+# container, or with the tools of .tool-versions installed locally, run it directly: ./tasks.sh test
 set -euo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")"
 
 minecraft_version() {
 	sed -n 's/^minecraft_version=//p' gradle.properties
@@ -55,7 +56,7 @@ task() {
 			task smoke
 			task client ;;
 		*)
-			echo "Usage: docker/tasks.sh <task> [loader]"
+			echo "Usage: ./tasks.sh <task> [loader]"
 			grep -E '^\s+[a-z-]+\) #' "$0" | sed -E 's/^\s+([a-z-]+)\) # /  \1\t/'
 			exit 1 ;;
 	esac

@@ -7,6 +7,9 @@
 	"entrypoints": {
 		"fabric-gametest": [
 			"webui.stats.mc.fabric.gametest.FabricGameTests"
+		],
+		"client": [
+			"webui.stats.mc.fabric.gametest.FabricSmokeClient"
 		]
 	},
 	"depends": {

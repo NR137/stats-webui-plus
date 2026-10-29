@@ -1,11 +1,14 @@
 name: tests
 
 # Pushes to main, pull requests, and every release (release.yml runs this first and stops if it fails).
-# Everything runs in the dev image (docker/Dockerfile) with the commands of docker/tasks.sh, as on a developer's machine.
+# Everything runs in the dev image (docker/Dockerfile) with the commands of ./tasks.sh, as on a developer's machine.
+# Draft pull requests only get the quick tests on each push; marking one "Ready for review" runs everything, and so
+# does every push after that. Both jobs are required to merge into main (branch protection).
 on:
   push:
     branches: [main]
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   workflow_call:
 
 permissions:
@@ -43,7 +46,7 @@ jobs:
             mc-textures-
 
       - name: test
-        run: docker compose run --rm -T dev docker/tasks.sh test
+        run: docker compose run --rm -T dev ./tasks.sh test
 
       - name: attach test report
         if: ${{ failure() }}
@@ -58,6 +61,8 @@ jobs:
   # (each loader's dev client on a virtual screen).
   integration:
     name: build, game, smoke and singleplayer tests
+    # Not for drafts (a skipped job counts as passed, but drafts can't be merged).
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -79,17 +84,17 @@ jobs:
           restore-keys: mc-textures-
 
       - name: build
-        run: docker compose run --rm -T dev docker/tasks.sh build
+        run: docker compose run --rm -T dev ./tasks.sh build
 
       - name: game tests
-        run: docker compose run --rm -T dev docker/tasks.sh gametest
+        run: docker compose run --rm -T dev ./tasks.sh gametest
 
       - name: smoke tests
-        run: docker compose run --rm -T dev docker/tasks.sh smoke
+        run: docker compose run --rm -T dev ./tasks.sh smoke
 
       # The dev client of each loader on a virtual screen, in a copy of the smoke test's world.
       - name: singleplayer tests
-        run: docker compose run --rm -T dev docker/tasks.sh client
+        run: docker compose run --rm -T dev ./tasks.sh client
 
       - name: attach logs
         if: ${{ failure() }}

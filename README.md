@@ -106,16 +106,16 @@ Player skins are fetched from Mojang through `/mojang/...`, because browsers may
 
 **Needs:** [Docker](https://docs.docker.com/get-docker/) (with Compose) · Minecraft 26.3 to play on the dev server
 
-Everything else runs in one dev image (`docker/Dockerfile`): Java, Node and Python in the versions of [`.tool-versions`](.tool-versions) (the only place they are set), Yarn from `web/package.json`, Playwright and Chromium from `scripts/requirements.txt`, Gradle from its wrapper. [`compose.yaml`](compose.yaml) runs it with your checkout mounted and the Gradle and Yarn caches in volumes. After changing `.tool-versions` or `scripts/requirements.txt`, run `docker compose build`.
+Everything else runs in one dev image (`docker/Dockerfile`): Java, Node and Python in the versions of [`.tool-versions`](.tool-versions) (the only place they are set), Yarn from `web/package.json`, Playwright and Chromium from `scripts/requirements.txt`, Gradle from its wrapper. [`compose.yaml`](compose.yaml) runs it with your checkout mounted and the Gradle and Yarn caches in volumes. Compose rebuilds the image by itself when `docker/Dockerfile`, `.tool-versions` or `scripts/requirements.txt` change.
 
 **VS Code:** open the folder and run **Dev Containers: Reopen in Container** (extension *Dev Containers*). Terminal, Gradle, Java and Svelte tooling then run in the container, the commands below work without `docker compose run --rm dev`, ports are forwarded, and the pre-commit hook is turned on.
 
-The build and test commands live in [`docker/tasks.sh`](docker/tasks.sh):
+The build and test commands live in [`tasks.sh`](tasks.sh):
 
 ```bash
-docker compose run --rm dev docker/tasks.sh build      # JARs in fabric/build/libs/ and neoforge/build/libs/
-docker compose run --rm dev docker/tasks.sh test       # Java and web tests
-docker compose run --rm dev docker/tasks.sh all        # everything CI runs (tests, build, game tests, smoke tests)
+docker compose run --rm dev ./tasks.sh build      # JARs in fabric/build/libs/ and neoforge/build/libs/
+docker compose run --rm dev ./tasks.sh test       # Java and web tests
+docker compose run --rm dev ./tasks.sh all        # everything CI runs (tests, build, game tests, smoke tests)
 docker compose run --rm dev                            # a shell in the dev image
 ```
 
@@ -143,10 +143,12 @@ The SvelteKit UI is built static and shipped **inside both JARs**.
 | `test-web` | Type check and Vitest tests of the web UI (`web/src/**/*.test.ts`) |
 | `test-scripts` | Python tests of the texture script's helpers (PNG reader checked against Pillow, models, wiki download rules) |
 | `gametest` | A mock player on each loader's game test server: joining and leaving, stats and advancements reaching the stats cache through the mixins, `saveIntervalSeconds`, and `503` with `Retry-After` while the server thread is stuck (`common/src/gametest`, registered in `fabric/src/gametest` and `neoforge/src/gametest`) |
-| `smoke` | The built JARs on the official Fabric and NeoForge servers with sample players, checked over HTTP and in headless Chromium, including config changes while running and another `world` folder (needs `build` first; see [`scripts/README.md`](scripts/README.md#smoke-test)) |
-| `client` | Singleplayer: each loader's dev client on a virtual screen opens a copy of the smoke test's world; the integrated server's web UI must answer and list the client's player as online (needs `smoke` first) |
+| `smoke` | The built JARs on the official Fabric and NeoForge servers with sample players, checked over HTTP and in headless Chromium, including config changes while running, `/reload` with a new data pack and another `world` folder (needs `build` first; see [`scripts/README.md`](scripts/README.md#smoke-test)) |
+| `client` | Singleplayer: each loader's dev client on a virtual screen opens a copy of the smoke test's world; the integrated server's web UI must answer and list the client's player as online. Then the client switches to a fresh world with only its own player while requests hit the API (needs `smoke` first) |
 
-Run one with `docker compose run --rm dev docker/tasks.sh <task>`. The `tests` workflow (`.github/workflows/tests.yml`) runs all of them in the same image on every pull request and push to `main`, and before every release.
+Run one with `docker compose run --rm dev ./tasks.sh <task>`. The `tests` workflow (`.github/workflows/tests.yml`) runs them in the same image: on draft pull requests only the quick tests, on other pull requests, pushes to `main` and before every release all of them.
+
+A **load test** (`scripts/load_test/load_test.py`) measures requests per second, response times and the game's milliseconds per tick with many players and visitors, with fixed resources so machines can be compared: `docker compose --profile tools run --rm load` (after `./tasks.sh build`; `LOADER`, `LOAD_CPUS`, `LOAD_MEMORY`, `LOAD_ARGS`). The `load test` workflow runs it by hand on x64 and ARM runners.
 
 A pre-commit hook runs the Java or web tests a commit touches, in the dev container or through Docker. The dev container turns it on; in another clone, run `git config core.hooksPath .githooks` once. `git commit --no-verify` skips it.
 

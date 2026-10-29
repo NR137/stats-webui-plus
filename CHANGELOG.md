@@ -207,7 +207,7 @@ reworked web UI. All changes below are relative to mc-stats-webui 1.2.1.
   skins (and default skins) work there as on the real site.
 - **Docker is the only thing to install for development.** One dev image (`docker/Dockerfile`) holds Java, Node,
   Python, Playwright with Chromium and a virtual screen; `compose.yaml` runs builds, tests, the dev server, the web
-  UI's dev server and the scripts in it with the caches in volumes, `docker/tasks.sh` has the commands, and
+  UI's dev server and the scripts in it with the caches in volumes, `./tasks.sh` has the commands, and
   `.devcontainer/` opens the project in it in VS Code. CI and the release workflow use the same image. Java, Node and
   Python versions are set only in `.tool-versions` (Gradle reads Java from there instead of `gradle.properties`).
 - **Tests:** unit and HTTP tests for the shared Java code (`./gradlew :common:test`: config, ranking rules, session
@@ -218,9 +218,11 @@ reworked web UI. All changes below are relative to mc-stats-webui 1.2.1.
   `saveIntervalSeconds` saves online players and that a stuck server thread gives `503` with `Retry-After`. Python tests
   cover the texture script's helpers (its PNG reader against Pillow). A smoke test
   (`scripts/smoke_test/`) runs the built JARs on the official Fabric and NeoForge servers with sample players and
-  checks the API, the web UI from the JAR, config changes while running (port, `world`) and, in headless Chromium,
-  navigation, languages and the phone layout. A singleplayer test opens a world in each loader's dev client on a
-  virtual screen and checks the integrated server's web UI. The
+  checks the API, the web UI from the JAR, config changes while running (port, `world`), `/reload` with a new data pack
+  and, in headless Chromium, navigation, languages, theme, search, compare, the advancements tab, the 3D avatar and the
+  phone layout. A singleplayer test opens a world in each loader's dev client on a virtual screen, checks the integrated
+  server's web UI and switches to a fresh world while requests keep coming. A load test (started by hand) measures
+  throughput, response times and tick times with fixed resources on x64 and ARM. The
   new `tests` workflow runs all of them on every pull request and push to `main`, and the release workflow runs them
   first and stops if one fails. An optional pre-commit hook
   (`git config core.hooksPath .githooks`) runs the tests a commit touches.

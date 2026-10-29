@@ -2,8 +2,9 @@
 
 Sets up the official server for the versions in gradle.properties (with Fabric API on Fabric), puts the JAR from
 <loader>/build/libs/ into mods/, writes the nine sample players (scripts/sample_data), starts the server and checks
-the web UI and the API over HTTP. Then it changes the config while the server runs (an address, the port), restarts
-the server on another world folder (`world`) and looks through the log for errors from the mod or its mixins.
+the web UI and the API over HTTP. Then it changes the config while the server runs (an address, the port), runs
+/reload with a new data pack and without it again, restarts the server on another world folder (`world`) and looks
+through the log for errors from the mod or its mixins.
 
 Usage: python3 scripts/smoke_test/smoke_test.py fabric|neoforge [--browser]
   --browser  also checks the web UI in headless Chromium (browser_checks.py; needs Playwright, see scripts/README.md)
@@ -383,6 +384,11 @@ class Server:
 		check(ready, f'the server starts with the mod ({time.time() - started:.0f} s)')
 		return ready
 
+	def command(self, line: str) -> None:
+		"""A console command, as typed into the server's console."""
+		self.process.stdin.write(line + '\n')
+		self.process.stdin.flush()
+
 	def stop(self) -> None:
 		if self.process.poll() is None:
 			self.process.stdin.write('stop\n')
@@ -424,6 +430,48 @@ def check_port_change(base: str, config: Path) -> str:
 		old_closed = True
 	check(old_closed, 'the old port is closed')
 	return new_base
+
+
+def wait_for(condition, seconds: float = 30) -> bool:
+	deadline = time.time() + seconds
+	while time.time() < deadline:
+		if condition():
+			return True
+		time.sleep(0.5)
+	return False
+
+
+def check_datapack_reload(base: str, folder: Path, server: 'Server') -> None:
+	"""CHANGELOG: after /reload the advancements follow the new data packs (added or removed advancements)."""
+	print('/reload with a new data pack', flush=True)
+	client_jar = ROOT / 'scripts' / '.cache' / 'minecraft' / MC_VERSION / 'minecraft-client.jar'
+	with zipfile.ZipFile(client_jar) as jar:
+		data_format = json.loads(jar.read('version.json'))['pack_version']['data_major']
+	pack = folder / 'world' / 'datapacks' / 'smoke_test'
+	advancement = pack / 'data' / 'smoke_test' / 'advancement' / 'hello.json'
+	advancement.parent.mkdir(parents=True, exist_ok=True)
+	(pack / 'pack.mcmeta').write_text(json.dumps({'pack': {
+		'description': 'Stats WebUI Plus smoke test', 'min_format': data_format, 'max_format': data_format,
+	}}))
+	# A child of the Minecraft tab; a visible advancement without parent would be a tab and need a background.
+	advancement.write_text(json.dumps({
+		'parent': 'minecraft:story/root',
+		'criteria': {'never': {'trigger': 'minecraft:impossible'}},
+		'display': {'icon': {'id': 'minecraft:diamond'}, 'title': 'Smoke test', 'description': 'Added by /reload'},
+	}))
+
+	def listed() -> bool:
+		catalog = get(base, '/api/advancements')
+		return is_json(catalog) and any(entry['id'] == 'smoke_test:hello' for entry in catalog.json().get('advancements', []))
+
+	check(not listed(), 'the data pack\'s advancement is not there before /reload')
+	server.command('reload')
+	check(wait_for(listed), 'after /reload the new advancement is listed')
+	check(get(base, '/api/advancements/smoke_test/hello').status == 200, '... and has its own page')
+	shutil.rmtree(pack)
+	server.command('reload')
+	check(wait_for(lambda: not listed()), 'after removing the data pack and /reload it is gone again')
+	check(get(base, '/api/advancements/smoke_test/hello').status == 404, '... and its page is a 404')
 
 
 def check_other_world(folder: Path, command: list[str], config: Path) -> list[str]:
@@ -481,7 +529,8 @@ def main() -> None:
 			if browser:
 				browser_checks.run(base, names, check)
 			check_reload(base, config)
-			check_port_change(base, config)
+			base = check_port_change(base, config)
+			check_datapack_reload(base, folder, server)
 	finally:
 		server.stop()
 	output = server.output + check_other_world(folder, command, config)

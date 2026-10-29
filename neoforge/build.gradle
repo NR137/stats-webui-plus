@@ -46,6 +46,8 @@ neoForge {
 			client()
 			gameDirectory = this.mkdir(this.file('build/run/smokeClient'))
 			programArguments.addAll('--quickPlaySingleplayer', 'smoke')
+			// With the test code, for the world switch (common/src/gametest/.../WorldSwitcher.java).
+			sourceSet = sourceSets.gametest
 		}
 		gameTestServer {
 			type = 'gameTestServer'

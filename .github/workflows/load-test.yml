@@ -1,0 +1,72 @@
+name: load test
+
+# Started by hand only: Actions -> load test -> Run workflow (or gh workflow run load-test.yml). Runs
+# scripts/load_test/load_test.py with fixed resources (compose.yaml, service load) on x64 and ARM runners and both
+# loaders; each job's summary has the table, the JSON reports are attached to the run. It reports, it doesn't judge:
+# a job only fails when the server doesn't start or more than 1 % of the requests fail.
+on:
+  workflow_dispatch:
+    inputs:
+      players:
+        description: 'Players in the world'
+        default: '200'
+      clients:
+        description: 'Visitors at the same time'
+        default: '50'
+      seconds:
+        description: 'Seconds per phase'
+        default: '30'
+      cpus:
+        description: 'CPUs for the container'
+        default: '2'
+      memory:
+        description: 'Memory for the container'
+        default: '4g'
+
+permissions:
+  contents: read
+
+jobs:
+  load:
+    name: ${{ matrix.loader }} on ${{ matrix.runner }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+        loader: [fabric, neoforge]
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v6
+
+      - name: dev image
+        uses: ./.github/actions/dev-image
+
+      - name: cache minecraft downloads
+        uses: actions/cache@v4
+        with:
+          path: scripts/.cache
+          key: mc-textures-${{ runner.arch }}-${{ hashFiles('gradle.properties', 'scripts/textures/extract_mc_textures.py') }}
+          restore-keys: |
+            mc-textures-${{ runner.arch }}-
+            mc-textures-
+
+      - name: build
+        run: docker compose run --rm -T dev ./tasks.sh build
+
+      - name: load test
+        env:
+          LOADER: ${{ matrix.loader }}
+          LOAD_CPUS: ${{ inputs.cpus }}
+          LOAD_MEMORY: ${{ inputs.memory }}
+          LOAD_ARGS: --players ${{ inputs.players }} --clients ${{ inputs.clients }} --seconds ${{ inputs.seconds }}
+        run: docker compose --profile tools run --rm -T -e GITHUB_STEP_SUMMARY=/workspace/build/load-test/summary.md load && cat build/load-test/summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: attach report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: load-test-${{ matrix.loader }}-${{ runner.arch }}
+          path: build/load-test/*.json
+          retention-days: 30
