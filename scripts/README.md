@@ -54,4 +54,15 @@ docker compose run --rm dev docker/tasks.sh smoke neoforge   # one
 
 It writes the sample players (`sample_data/`), starts the server and checks over HTTP that the mod loaded (no mixin errors in the log), that the API answers for every player, board and advancement, that the web UI is served from the JAR, and that a changed config applies while the server runs. Then it stops the server. With `--browser` (which `docker/tasks.sh smoke` passes) it also opens the web UI in headless Chromium: navigation, direct links and reloads, "not found" pages, the four languages and the phone layout. `python scripts/smoke_test/smoke_test.py fabric` alone skips the browser.
 
+It also changes the config while the server runs (an address, then the port, which must move the web server) and restarts the server with `world` pointing at another folder with three of the players.
+
 The servers and their downloads are kept in `scripts/.cache/smoke/`; the world, config and mods are written fresh every run. A run takes under a minute once the server is downloaded. The `tests` workflow runs both loaders with `--browser` on every pull request and before every release.
+
+## Singleplayer test
+
+`client_test.py` checks the mod on a client's integrated server. It starts each loader's dev client (`./gradlew :<loader>:runSmokeClient`, run folder `<loader>/build/run/smokeClient/`) on a virtual screen (Xvfb, OpenGL in software through EGL), which opens a copy of the smoke test's world directly (`--quickPlaySingleplayer`). The integrated server's web UI must answer, list the world's players and show the client's own player as online with a real first join; then the client is closed and its log checked for errors from the mod or its mixins.
+
+```
+docker compose run --rm dev docker/tasks.sh client            # both loaders; needs the smoke test first
+docker compose run --rm dev docker/tasks.sh client neoforge   # one
+```

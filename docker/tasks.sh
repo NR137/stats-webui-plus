@@ -26,9 +26,12 @@ task() {
 		test-web) # Type check and Vitest tests of web/
 			web_texts
 			(cd web && corepack yarn install --immutable && corepack yarn check && corepack yarn test) ;;
-		test) # The quick tests: test-java and test-web
+		test-scripts) # Python tests of scripts/ (texture script helpers)
+			python -m unittest discover -s scripts/textures -p 'test_*.py' ;;
+		test) # The quick tests: test-java, test-web and test-scripts
 			task test-java
-			task test-web ;;
+			task test-web
+			task test-scripts ;;
 		gametest) # Mock player game tests on Fabric and NeoForge
 			./gradlew :fabric:runGameTest :neoforge:runGameTestServer ;;
 		smoke) # Built JARs on the official servers, with browser checks; needs build first
@@ -38,11 +41,19 @@ task() {
 				python scripts/smoke_test/smoke_test.py fabric --browser
 				python scripts/smoke_test/smoke_test.py neoforge --browser
 			fi ;;
+		client) # Singleplayer on each loader's dev client, on a virtual screen; needs smoke first (its world)
+			if [ -n "${2:-}" ]; then
+				python scripts/smoke_test/client_test.py "$2"
+			else
+				python scripts/smoke_test/client_test.py fabric
+				python scripts/smoke_test/client_test.py neoforge
+			fi ;;
 		all) # Everything CI runs
 			task test
 			task build
 			task gametest
-			task smoke ;;
+			task smoke
+			task client ;;
 		*)
 			echo "Usage: docker/tasks.sh <task> [loader]"
 			grep -E '^\s+[a-z-]+\) #' "$0" | sed -E 's/^\s+([a-z-]+)\) # /  \1\t/'

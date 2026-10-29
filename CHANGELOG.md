@@ -214,9 +214,13 @@ reworked web UI. All changes below are relative to mc-stats-webui 1.2.1.
   log, stats loading and API data, web server) and Vitest tests for the web UI (`corepack yarn test`: tiers,
   translations, API client, language detection), with a fake Mojang server for the skin proxy and the name lookups.
   Game tests on Fabric and NeoForge (`./gradlew :fabric:runGameTest :neoforge:runGameTestServer`) let a mock player
-  join, leave, raise stats and earn and lose advancements, and check that each reaches the stats cache. A smoke test
+  join, leave, raise stats and earn and lose advancements, and check that each reaches the stats cache, that
+  `saveIntervalSeconds` saves online players and that a stuck server thread gives `503` with `Retry-After`. Python tests
+  cover the texture script's helpers (its PNG reader against Pillow). A smoke test
   (`scripts/smoke_test/`) runs the built JARs on the official Fabric and NeoForge servers with sample players and
-  checks the API, the web UI from the JAR and, in headless Chromium, navigation, languages and the phone layout. The
+  checks the API, the web UI from the JAR, config changes while running (port, `world`) and, in headless Chromium,
+  navigation, languages and the phone layout. A singleplayer test opens a world in each loader's dev client on a
+  virtual screen and checks the integrated server's web UI. The
   new `tests` workflow runs all of them on every pull request and push to `main`, and the release workflow runs them
   first and stops if one fails. An optional pre-commit hook
   (`git config core.hooksPath .githooks`) runs the tests a commit touches.

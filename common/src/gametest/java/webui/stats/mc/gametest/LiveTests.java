@@ -1,5 +1,16 @@
 package webui.stats.mc.gametest;
 
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -14,9 +25,12 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.stats.Stats;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.storage.LevelResource;
+import webui.stats.mc.WebConfig;
 import webui.stats.mc.stats.PlayerRecord;
 import webui.stats.mc.stats.SessionLog;
 import webui.stats.mc.stats.StatsCache;
+import webui.stats.mc.stats.StatsService;
 import webui.stats.mc.web.StatsHttpServer;
 
 /**
@@ -37,13 +51,26 @@ public final class LiveTests {
 		tests.put("stats_reach_the_cache", LiveTests::statsReachTheCache);
 		tests.put("advancements_reach_the_cache", LiveTests::advancementsReachTheCache);
 		tests.put("revoked_advancement_leaves_the_cache", LiveTests::revokedAdvancementLeavesTheCache);
+		tests.put("save_interval_and_busy_server", LiveTests::saveIntervalAndBusyServer);
 		return tests;
 	}
 
 	static void webServerStarted(GameTestHelper helper) {
-		helper.assertTrue(StatsHttpServer.getInstance().config() != null, "the mod's web server did not start with the server");
 		helper.assertTrue(StatsCache.get().isReady(), "the stats cache was not loaded on server start");
-		helper.succeed();
+		CompletableFuture<HttpResponse<String>> health = get("/api/health");
+		helper.succeedWhen(() -> {
+			helper.assertTrue(health.isDone(), "waiting for /api/health");
+			helper.assertFalse(health.isCompletedExceptionally(), "the mod's web server does not answer");
+			helper.assertValueEqual(health.join().statusCode(), 200, "/api/health status");
+		});
+	}
+
+	/** A request to the mod's web server, on another thread: the API may need the server thread meanwhile. */
+	private static CompletableFuture<HttpResponse<String>> get(String path) {
+		int port = StatsHttpServer.getInstance().config().port();
+		return HttpClient.newHttpClient().sendAsync(
+			HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path)).timeout(Duration.ofSeconds(30)).build(),
+			HttpResponse.BodyHandlers.ofString());
 	}
 
 	static void joinAndLeave(GameTestHelper helper) {
@@ -125,6 +152,72 @@ public final class LiveTests {
 				"revoked advancement still in the cache"))
 			.thenExecute(() -> leave(player))
 			.thenSucceed();
+	}
+
+	/**
+	 * Both need a changed config, which all tests share, so they run one after the other in one test.
+	 * README: saveIntervalSeconds also saves online players' stats that often. CHANGELOG: when the game can't hand
+	 * over the stats within 5 seconds (a lag spike), the API answers 503 with Retry-After.
+	 */
+	static void saveIntervalAndBusyServer(GameTestHelper helper) {
+		MinecraftServer server = helper.getLevel().getServer();
+		Path config = WebConfig.path();
+		String original = read(config);
+		JsonObject changed = JsonParser.parseString(original).getAsJsonObject();
+		changed.addProperty("saveIntervalSeconds", 1);
+		changed.addProperty("refreshCooldownMs", 0);
+		write(config, changed.toString());
+		StatsHttpServer.getInstance().reloadConfig("game test");
+
+		ServerPlayer player = helper.makeMockServerPlayerInLevel();
+		player.awardStat(Stats.CUSTOM.get(Stats.JUMP), 3);
+		Path statsFile = StatsService.statsDirectory(server.getWorldPath(LevelResource.ROOT)).resolve(player.getUUID() + ".json");
+		AtomicReference<CompletableFuture<HttpResponse<String>>> request = new AtomicReference<>();
+		helper.startSequence()
+			.thenWaitUntil(() -> {
+				helper.assertTrue(Files.isRegularFile(statsFile), "online player's stats not saved yet: " + statsFile);
+				JsonObject stats = JsonParser.parseString(read(statsFile)).getAsJsonObject().getAsJsonObject("stats");
+				JsonObject custom = stats == null ? null : stats.getAsJsonObject("minecraft:custom");
+				helper.assertTrue(custom != null && custom.has("minecraft:jump") && custom.get("minecraft:jump").getAsInt() == 3,
+					"saved stats lack the jumps: " + stats);
+			})
+			.thenExecute(() -> {
+				// An API request while the server thread is stuck, like in a lag spike.
+				request.set(get("/api/players"));
+				try {
+					Thread.sleep(8_000);
+				} catch (InterruptedException e) {
+					Thread.currentThread().interrupt();
+				}
+			})
+			.thenWaitUntil(() -> {
+				helper.assertTrue(request.get().isDone(), "waiting for the API's answer");
+				HttpResponse<String> response = request.get().join();
+				helper.assertValueEqual(response.statusCode(), 503, "status while the server thread is busy");
+				helper.assertTrue(response.headers().firstValue("Retry-After").isPresent(), "503 without Retry-After");
+			})
+			.thenExecute(() -> {
+				write(config, original);
+				StatsHttpServer.getInstance().reloadConfig("game test finished");
+				leave(player);
+			})
+			.thenSucceed();
+	}
+
+	private static String read(Path file) {
+		try {
+			return Files.readString(file);
+		} catch (IOException e) {
+			throw new UncheckedIOException(e);
+		}
+	}
+
+	private static void write(Path file, String text) {
+		try {
+			Files.writeString(file, text);
+		} catch (IOException e) {
+			throw new UncheckedIOException(e);
+		}
 	}
 
 	/**

@@ -138,10 +138,13 @@ The SvelteKit UI is built static and shipped **inside both JARs**.
 
 | Task | What |
 | --- | --- |
+| `test` | `test-java`, `test-web` and `test-scripts`: the quick tests |
 | `test-java` | JUnit tests of `common/` (`common/src/test`): config, ranking, session log, names, stats and API data, web server, Mojang proxy against a fake Mojang |
 | `test-web` | Type check and Vitest tests of the web UI (`web/src/**/*.test.ts`) |
-| `gametest` | A mock player on each loader's game test server: joining and leaving, stats and advancements reaching the stats cache through the mixins (`common/src/gametest`, registered in `fabric/src/gametest` and `neoforge/src/gametest`) |
-| `smoke` | The built JARs on the official Fabric and NeoForge servers with sample players, checked over HTTP and in headless Chromium (needs `build` first; see [`scripts/README.md`](scripts/README.md#smoke-test)) |
+| `test-scripts` | Python tests of the texture script's helpers (PNG reader checked against Pillow, models, wiki download rules) |
+| `gametest` | A mock player on each loader's game test server: joining and leaving, stats and advancements reaching the stats cache through the mixins, `saveIntervalSeconds`, and `503` with `Retry-After` while the server thread is stuck (`common/src/gametest`, registered in `fabric/src/gametest` and `neoforge/src/gametest`) |
+| `smoke` | The built JARs on the official Fabric and NeoForge servers with sample players, checked over HTTP and in headless Chromium, including config changes while running and another `world` folder (needs `build` first; see [`scripts/README.md`](scripts/README.md#smoke-test)) |
+| `client` | Singleplayer: each loader's dev client on a virtual screen opens a copy of the smoke test's world; the integrated server's web UI must answer and list the client's player as online (needs `smoke` first) |
 
 Run one with `docker compose run --rm dev docker/tasks.sh <task>`. The `tests` workflow (`.github/workflows/tests.yml`) runs all of them in the same image on every pull request and push to `main`, and before every release.
 

@@ -32,4 +32,9 @@ public class FabricGameTests {
 	public void revokedAdvancementLeavesTheCache(GameTestHelper helper) {
 		LiveTests.all().get("revoked_advancement_leaves_the_cache").accept(helper);
 	}
+
+	@GameTest(maxTicks = MAX_TICKS)
+	public void saveIntervalAndBusyServer(GameTestHelper helper) {
+		LiveTests.all().get("save_interval_and_busy_server").accept(helper);
+	}
 }

@@ -41,6 +41,12 @@ neoForge {
 			programArgument '--nogui'
 			gameDirectory = this.mkdir(this.file('runs/server'))
 		}
+		// Singleplayer test (scripts/smoke_test/client_test.py): opens the world "smoke" directly.
+		smokeClient {
+			client()
+			gameDirectory = this.mkdir(this.file('build/run/smokeClient'))
+			programArguments.addAll('--quickPlaySingleplayer', 'smoke')
+		}
 		gameTestServer {
 			type = 'gameTestServer'
 			sourceSet = sourceSets.gametest
@@ -57,6 +63,16 @@ neoForge {
 	}
 
 	addModdingDependenciesTo(sourceSets.gametest)
+}
+
+// The mod's web server gets a port of its own during game tests, so the Fabric and NeoForge runs (which Gradle starts
+// at the same time) and a running dev server don't take each other's port. Written after the run folder is set up.
+tasks.named('runGameTestServer') {
+	doFirst {
+		def config = file("build/run/gameTest/config/${mod_id}.json")
+		config.parentFile.mkdirs()
+		config.text = '{"port": 25582, "bind": "127.0.0.1"}\n'
+	}
 }
 
 // Implement mcgradleconventions loader attribute

@@ -12,10 +12,12 @@ staged=$(git diff --cached --name-only --diff-filter=ACMRD)
 
 java=false
 web=false
+scripts=false
 for file in $staged; do
 	case "$file" in
 		common/* | fabric/* | neoforge/* | build-logic/* | *.gradle | gradle.properties | gradle/* | .tool-versions) java=true ;;
 		web/*) web=true ;;
+		scripts/*.py | scripts/*/*.py) scripts=true ;;
 	esac
 done
 
@@ -35,6 +37,15 @@ if $java; then
 	echo "pre-commit: java tests"
 	run test-java >/dev/null || {
 		echo "pre-commit: java tests failed, see common/build/reports/tests/test/index.html (skip with --no-verify)"
+		exit 1
+	}
+fi
+
+if $scripts; then
+	echo "pre-commit: script tests"
+	out=$(run test-scripts 2>&1) || {
+		echo "$out" | tail -40
+		echo "pre-commit: script tests failed (skip with --no-verify)"
 		exit 1
 	}
 fi

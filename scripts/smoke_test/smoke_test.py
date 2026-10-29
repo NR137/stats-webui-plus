@@ -2,8 +2,8 @@
 
 Sets up the official server for the versions in gradle.properties (with Fabric API on Fabric), puts the JAR from
 <loader>/build/libs/ into mods/, writes the nine sample players (scripts/sample_data), starts the server and checks
-the web UI and the API over HTTP. Then it changes the config while the server runs, stops the server and looks
-through the log for errors from the mod or its mixins.
+the web UI and the API over HTTP. Then it changes the config while the server runs (an address, the port), restarts
+the server on another world folder (`world`) and looks through the log for errors from the mod or its mixins.
 
 Usage: python3 scripts/smoke_test/smoke_test.py fabric|neoforge [--browser]
   --browser  also checks the web UI in headless Chromium (browser_checks.py; needs Playwright, see scripts/README.md)
@@ -120,7 +120,8 @@ def set_up(loader: str, game_port: int, web_port: int) -> tuple[Path, list[str],
 	folder = CACHE / f'{loader}-{MC_VERSION}'
 	folder.mkdir(parents=True, exist_ok=True)
 	# Fresh state every run; downloaded server files and libraries stay.
-	for name in ('world', 'config', 'mods', 'logs', 'crash-reports', 'usercache.json', 'server.properties'):
+	for name in ('world', 'other_world', 'config', 'mods', 'logs', 'crash-reports', 'usercache.json', 'server.properties',
+			'smoke-test.log'):
 		path = folder / name
 		if path.is_dir():
 			shutil.rmtree(path)
@@ -340,6 +341,117 @@ def check_log(log: str) -> None:
 	check(not problems, f'no errors or warnings from the mod or mixins ({len(problems)} found)')
 
 
+# --- Server process ---
+
+
+class Server:
+	"""The server process; its output is kept for the log checks and appended to smoke-test.log."""
+
+	def __init__(self, folder: Path, command: list[str]):
+		self.output: list[str] = []
+		self.process = subprocess.Popen(
+			[java(), '-Xmx2G', *command], cwd=folder, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+			stderr=subprocess.STDOUT, text=True, encoding='utf-8', errors='replace',
+		)
+		self.log_file = (folder / 'smoke-test.log').open('a', encoding='utf-8')
+		self.reader = threading.Thread(target=self._pump, daemon=True)
+		self.reader.start()
+
+	def _pump(self):
+		for line in self.process.stdout:
+			self.output.append(line.rstrip('\n'))
+			self.log_file.write(line)
+			self.log_file.flush()
+
+	def wait_ready(self, base: str) -> bool:
+		started = time.time()
+		done_at = None
+		ready = False
+		while time.time() - started < START_TIMEOUT_S and self.process.poll() is None:
+			try:
+				ready = get(base, '/api/health').status == 200
+			except OSError:
+				ready = False
+			if done_at is None and any(re.search(r'Done \(', line) for line in self.output):
+				done_at = time.time()
+			if ready and done_at is not None:
+				break
+			# The server is up but the mod's web server isn't: the mod didn't load or crashed while starting.
+			if done_at is not None and time.time() - done_at > 60:
+				break
+			time.sleep(1)
+		check(ready, f'the server starts with the mod ({time.time() - started:.0f} s)')
+		return ready
+
+	def stop(self) -> None:
+		if self.process.poll() is None:
+			self.process.stdin.write('stop\n')
+			self.process.stdin.flush()
+			try:
+				self.process.wait(timeout=120)
+			except subprocess.TimeoutExpired:
+				self.process.kill()
+				self.process.wait()
+		self.reader.join(timeout=10)
+		self.log_file.close()
+		check(self.process.returncode == 0, f'the server stops cleanly (exit code {self.process.returncode})')
+
+
+def set_config(config: Path, **changes) -> None:
+	data = json.loads(config.read_text())
+	data.update(changes)
+	config.write_text(json.dumps(data, indent=2))
+
+
+def check_port_change(base: str, config: Path) -> str:
+	"""README: config changes apply without a restart; a new port or address moves the web server."""
+	print('New port while running', flush=True)
+	new_port = free_port()
+	new_base = f'http://127.0.0.1:{new_port}'
+	set_config(config, port=new_port)
+	deadline = time.time() + 20
+	moved = False
+	while time.time() < deadline and not moved:
+		try:
+			moved = get(new_base, '/api/health').status == 200
+		except OSError:
+			time.sleep(0.5)
+	check(moved, f'the web server moves to the new port {new_port}')
+	try:
+		get(base, '/api/health')
+		old_closed = False
+	except OSError:
+		old_closed = True
+	check(old_closed, 'the old port is closed')
+	return new_base
+
+
+def check_other_world(folder: Path, command: list[str], config: Path) -> list[str]:
+	"""README: `world` reads stats from another world folder; only a new world waits for a restart."""
+	print('Another world folder (after a restart)', flush=True)
+	world = folder / 'world' / 'players'
+	other = folder / 'other_world' / 'players'
+	picked = sorted(path.stem for path in (world / 'stats').glob('*.json'))[:3]
+	for kind in ('stats', 'advancements'):
+		(other / kind).mkdir(parents=True, exist_ok=True)
+		for uuid in picked:
+			if (world / kind / f'{uuid}.json').is_file():
+				shutil.copy(world / kind / f'{uuid}.json', other / kind / f'{uuid}.json')
+	web_port = free_port()
+	base = f'http://127.0.0.1:{web_port}'
+	set_config(config, world='other_world', port=web_port)
+	server = Server(folder, command)
+	try:
+		if server.wait_ready(base):
+			status = get(base, '/api/status').json()
+			check(status.get('trackedPlayers') == 3, f'the API reads other_world: 3 players (got {status.get("trackedPlayers")})')
+			uuids = sorted(player['uuid'] for player in get(base, '/api/players').json().get('players', []))
+			check(uuids == picked, 'exactly the players of other_world, not those of the running world')
+	finally:
+		server.stop()
+	return server.output
+
+
 # --- Main ---
 
 
@@ -357,60 +469,22 @@ def main() -> None:
 		import browser_checks
 	game_port, web_port = free_port(), free_port()
 	folder, command, jar = set_up(loader, game_port, web_port)
+	config = folder / 'config' / f'{MOD_ID}.json'
 	base = f'http://127.0.0.1:{web_port}'
 	print(f'Starting the {loader} server in {folder} (web UI on {base})', flush=True)
 
-	output: list[str] = []
-	server = subprocess.Popen(
-		[java(), '-Xmx2G', *command], cwd=folder, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-		stderr=subprocess.STDOUT, text=True, encoding='utf-8', errors='replace',
-	)
-	log_file = (folder / 'smoke-test.log').open('w', encoding='utf-8')
-
-	def pump():
-		for line in server.stdout:
-			output.append(line.rstrip('\n'))
-			log_file.write(line)
-			log_file.flush()
-
-	reader = threading.Thread(target=pump, daemon=True)
-	reader.start()
-
-	started = time.time()
-	done_at = None
-	ready = False
-	while time.time() - started < START_TIMEOUT_S and server.poll() is None:
-		try:
-			ready = get(base, '/api/health').status == 200
-		except OSError:
-			ready = False
-		if done_at is None and any(re.search(r'Done \(', line) for line in output):
-			done_at = time.time()
-		if ready and done_at is not None:
-			break
-		# The server is up but the mod's web server isn't: the mod didn't load or crashed while starting.
-		if done_at is not None and time.time() - done_at > 60:
-			break
-		time.sleep(1)
+	server = Server(folder, command)
 	try:
-		if check(ready, f'the server starts with the mod ({time.time() - started:.0f} s)'):
+		if server.wait_ready(base):
 			names = check_api(base)
 			check_web(base, jar, names)
 			if browser:
 				browser_checks.run(base, names, check)
-			check_reload(base, folder / 'config' / f'{MOD_ID}.json')
+			check_reload(base, config)
+			check_port_change(base, config)
 	finally:
-		if server.poll() is None:
-			server.stdin.write('stop\n')
-			server.stdin.flush()
-			try:
-				server.wait(timeout=120)
-			except subprocess.TimeoutExpired:
-				server.kill()
-				server.wait()
-		reader.join(timeout=10)
-		log_file.close()
-	check(server.returncode == 0, f'the server stops cleanly (exit code {server.returncode})')
+		server.stop()
+	output = server.output + check_other_world(folder, command, config)
 	check_log('\n'.join(output))
 
 	print()

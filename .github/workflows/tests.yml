@@ -53,10 +53,11 @@ jobs:
           path: common/build/reports/tests/test
           retention-days: 7
 
-  # The release JARs, the game tests (a mock player on each loader's game test server) and the smoke tests (the JARs
-  # on the official Fabric and NeoForge servers, checked over HTTP and in headless Chromium).
+  # The release JARs, the game tests (a mock player on each loader's game test server), the smoke tests (the JARs on
+  # the official Fabric and NeoForge servers, checked over HTTP and in headless Chromium) and the singleplayer tests
+  # (each loader's dev client on a virtual screen).
   integration:
-    name: build, game tests, smoke tests
+    name: build, game, smoke and singleplayer tests
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -86,6 +87,10 @@ jobs:
       - name: smoke tests
         run: docker compose run --rm -T dev docker/tasks.sh smoke
 
+      # The dev client of each loader on a virtual screen, in a copy of the smoke test's world.
+      - name: singleplayer tests
+        run: docker compose run --rm -T dev docker/tasks.sh client
+
       - name: attach logs
         if: ${{ failure() }}
         uses: actions/upload-artifact@v4
@@ -93,6 +98,8 @@ jobs:
           name: integration-logs
           path: |
             scripts/.cache/smoke/*/smoke-test.log
+            fabric/build/run/smokeClient/client-test.log
+            neoforge/build/run/smokeClient/client-test.log
             fabric/build/run/gameTest/logs
             neoforge/build/run/gameTest/logs
           retention-days: 7
