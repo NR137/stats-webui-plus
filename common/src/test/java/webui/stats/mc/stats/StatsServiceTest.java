@@ -237,6 +237,41 @@ class StatsServiceTest {
 		assertTrue(vanilla.has("mined"), vanilla.keySet().toString());
 	}
 
+	/** A vanilla stat's rank is the player's place: one more than the number of players with a higher value. */
+	@Test
+	void vanillaRanksArePlaces() throws IOException {
+		List<PlayerRecord> players = sampleWorld();
+		for (PlayerRecord player : players) {
+			JsonObject page = json(StatsService.playerPayload(player, players));
+			JsonObject vanilla = page.getAsJsonObject("vanilla");
+			JsonObject zeros = page.has("vanillaZero") ? page.getAsJsonObject("vanillaZero") : new JsonObject();
+			for (String group : vanilla.keySet()) {
+				for (JsonElement row : vanilla.getAsJsonArray(group)) {
+					String id = row.getAsJsonObject().get("id").getAsString();
+					assertEquals(place(players, group, id, player), row.getAsJsonObject().get("rank").getAsInt(),
+						player.name + " " + group + " " + id);
+				}
+				if (!zeros.has(group)) {
+					continue;
+				}
+				for (Map.Entry<String, JsonElement> rank : zeros.getAsJsonObject(group).entrySet()) {
+					for (Map.Entry<String, JsonElement> namespace : rank.getValue().getAsJsonObject().entrySet()) {
+						for (JsonElement path : namespace.getValue().getAsJsonArray()) {
+							String id = namespace.getKey().isEmpty() ? path.getAsString() : namespace.getKey() + ":" + path.getAsString();
+							assertEquals(place(players, group, id, player), Integer.parseInt(rank.getKey()),
+								player.name + " " + group + " " + id);
+						}
+					}
+				}
+			}
+		}
+	}
+
+	private static int place(List<PlayerRecord> players, String group, String id, PlayerRecord target) {
+		long value = target.vanillaRaw(group, id);
+		return 1 + (int) players.stream().filter(other -> other.vanillaRaw(group, id) > value).count();
+	}
+
 	// --- /api/leaderboards/<id> ---
 
 	@Test

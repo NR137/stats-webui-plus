@@ -259,6 +259,11 @@ public final class StatsService {
 	}
 
 	public static Map<String, Object> playerPayload(PlayerRecord player, List<PlayerRecord> players) {
+		return playerPayload(player, players, new VanillaRanks(players));
+	}
+
+	/** With the ranks of a {@link StatsCache.Snapshot}, shared by all requests until the players change. */
+	public static Map<String, Object> playerPayload(PlayerRecord player, List<PlayerRecord> players, VanillaRanks ranks) {
 		Map<String, Object> item = playerSummary(player);
 		// Epoch milliseconds (UTC); the web UI shows them in the visitor's time zone.
 		SessionLog.Times times = SessionLog.get().times(player.uuid);
@@ -293,7 +298,7 @@ public final class StatsService {
 		}
 		item.put("stats", stats);
 		Map<String, Object> zeros = new LinkedHashMap<>();
-		item.put("vanilla", vanillaPayload(player, players, zeros));
+		item.put("vanilla", vanillaPayload(player, ranks, zeros));
 		item.put("vanillaZero", zeros);
 		item.put("advancements", advancementsPayload(player, players));
 		return item;
@@ -361,18 +366,18 @@ public final class StatsService {
 	 */
 	private static Map<String, Object> vanillaPayload(
 		PlayerRecord player,
-		List<PlayerRecord> players,
+		VanillaRanks ranks,
 		Map<String, Object> zeros
 	) {
 		Map<String, Object> body = new LinkedHashMap<>();
 		for (String group : VanillaCatalog.GROUPS) {
 			List<Map<String, Object>> rows = new ArrayList<>();
 			Map<Integer, List<String>> zeroIds = new TreeMap<>();
-			for (String id : vanillaKeys(group, players)) {
+			for (String id : ranks.keys(group)) {
 				long raw = player.vanillaRaw(group, id);
 				String unit = vanillaUnit(group, id);
 				if (raw == 0 && "count".equals(unit)) {
-					zeroIds.computeIfAbsent(vanillaRank(players, group, id, raw), rank -> new ArrayList<>()).add(id);
+					zeroIds.computeIfAbsent(ranks.rank(group, id, raw), rank -> new ArrayList<>()).add(id);
 					continue;
 				}
 				double value = vanillaValue(group, id, raw);
@@ -381,7 +386,7 @@ public final class StatsService {
 				row.put("value", round(value));
 				row.put("display", display(unit, value));
 				row.put("unit", unit);
-				row.put("rank", vanillaRank(players, group, id, raw));
+				row.put("rank", ranks.rank(group, id, raw));
 				rows.add(row);
 			}
 			body.put(group, rows);
@@ -430,16 +435,6 @@ public final class StatsService {
 			case "hearts" -> raw / 20.0;
 			default -> raw;
 		};
-	}
-
-	private static int vanillaRank(List<PlayerRecord> players, String group, String id, long raw) {
-		int place = 1;
-		for (PlayerRecord player : players) {
-			if (player.vanillaRaw(group, id) > raw) {
-				place += 1;
-			}
-		}
-		return place;
 	}
 
 	public static LeaderboardInfo resolve(String path, List<PlayerRecord> players) {

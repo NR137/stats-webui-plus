@@ -32,6 +32,8 @@ public final class StatsCache {
 	private Path worldRoot;
 	private Map<UUID, String> knownNames = Map.of();
 	private List<PlayerRecord> players = List.of();
+	// For the players above; null after they changed, made again by the next request (see copy()).
+	private VanillaRanks ranks;
 	private volatile boolean ready;
 	// System.nanoTime() of the last moment the cache matched the game's live stats.
 	private volatile long refreshedAt;
@@ -48,6 +50,7 @@ public final class StatsCache {
 			this.worldRoot = worldRoot;
 			this.knownNames = Map.copyOf(knownNames);
 			this.players = StatsService.load(worldRoot, this.knownNames);
+			this.ranks = null;
 			this.ready = true;
 			this.dirty.clear();
 			this.dirtyAdvancements.clear();
@@ -61,6 +64,7 @@ public final class StatsCache {
 			worldRoot = null;
 			knownNames = Map.of();
 			players = List.of();
+			ranks = null;
 			ready = false;
 			dirty.clear();
 			dirtyAdvancements.clear();
@@ -260,6 +264,7 @@ public final class StatsCache {
 					byId.put(uuid, name != null && !name.equals(player.name) ? player.withName(name) : player);
 				});
 				players = ChampionScorer.apply(new ArrayList<>(byId.values()));
+				ranks = null;
 			}
 		}
 		refreshedAt = capture.at();
@@ -269,12 +274,19 @@ public final class StatsCache {
 		// Read before copying: the players can only be newer than this, so the age is never understated.
 		long at = refreshedAt;
 		synchronized (lock) {
-			return new Snapshot(List.copyOf(players), at);
+			// A new name changes no stat, so onNameResolved keeps the ranks.
+			if (ranks == null) {
+				ranks = new VanillaRanks(players);
+			}
+			return new Snapshot(List.copyOf(players), at, ranks);
 		}
 	}
 
-	/** The players together with the System.nanoTime() at which they last matched the game's live stats. */
-	public record Snapshot(List<PlayerRecord> players, long refreshedAt) {
+	/**
+	 * The players together with the System.nanoTime() at which they last matched the game's live stats, and their
+	 * vanilla ranks (shared by every snapshot of the same players, so they are worked out once).
+	 */
+	public record Snapshot(List<PlayerRecord> players, long refreshedAt, VanillaRanks vanillaRanks) {
 	}
 
 	/** What changed since the last refresh, copied on the server thread at System.nanoTime() {@code at}. */

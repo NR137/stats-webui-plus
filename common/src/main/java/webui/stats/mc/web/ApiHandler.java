@@ -68,7 +68,7 @@ public final class ApiHandler {
 					LeaderboardInfo info = LeaderboardCatalog.find("advancements");
 					HttpJson.send(exchange, 200, StatsService.leaderboardPayload(info, players), cache);
 				}
-				default -> handleDynamic(exchange, path, players, cache);
+				default -> handleDynamic(exchange, path, snapshot, cache);
 			}
 		} catch (TimeoutException e) {
 			// Not an error of the mod: the game was too busy (lag spike, big command) to hand over the stats in time.
@@ -81,7 +81,8 @@ public final class ApiHandler {
 		}
 	}
 
-	private void handleDynamic(HttpExchange exchange, String path, List<PlayerRecord> players, String cache) throws IOException {
+	private void handleDynamic(HttpExchange exchange, String path, StatsCache.Snapshot snapshot, String cache) throws IOException {
+		List<PlayerRecord> players = snapshot.players();
 		if (path.startsWith("/api/players/")) {
 			String name = path.substring("/api/players/".length());
 			PlayerRecord player = StatsService.find(players, name);
@@ -89,7 +90,7 @@ public final class ApiHandler {
 				HttpJson.error(exchange, 404, "not_found", "Player not found");
 				return;
 			}
-			HttpJson.send(exchange, 200, StatsService.playerPayload(player, players), cache);
+			HttpJson.send(exchange, 200, StatsService.playerPayload(player, players, snapshot.vanillaRanks()), cache);
 			return;
 		}
 		if (path.startsWith("/api/leaderboards/")) {

@@ -152,6 +152,9 @@ reworked web UI. All changes below are relative to mc-stats-webui 1.2.1.
   a skin change shows up a visit later without anyone waiting. Concurrent requests for the same skin share one
   Mojang request, and at startup the skins of the 100 most played players are fetched in advance. Mojang errors and
   rate limits are never cached.
+- **Player pages are built about 7× faster** (load test, 2 CPUs, 209 players: about 97 → 630–900 requests per second,
+  median response time 500 → 90 ms). The rank of every vanilla stat on the page was found by comparing with every
+  player, on every request; now each stat's values are sorted once per cache refresh, and a rank is looked up in them.
 - Sorting the long stat lists on the player, compare and leaderboard pages is about 4× faster: each name is looked up
   once per sort instead of on every comparison.
 - First-join estimates for players the session log never saw are kept until their advancements file changes, instead
