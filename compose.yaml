@@ -5,38 +5,36 @@
 # After changing .tool-versions or scripts/requirements.txt: docker compose build
 name: stats-webui-plus
 
-x-dev: &dev
-  image: stats-webui-plus-dev
-  build:
-    context: .
-    dockerfile: docker/Dockerfile
-    args:
-      # Your user's IDs, so files written into the checkout belong to you (CI passes its own).
-      USER_UID: ${USER_UID:-1000}
-      USER_GID: ${USER_GID:-1000}
-  working_dir: /workspace
-  init: true
-  # Chromium needs more shared memory than Docker's default 64 MB.
-  shm_size: 1gb
-  volumes:
-    - .:/workspace
-    # Named volumes by default; CI sets these to folders it caches.
-    - ${GRADLE_CACHE:-gradle-cache}:/home/dev/.gradle
-    - ${YARN_CACHE:-yarn-cache}:/home/dev/.yarn/berry
-  environment:
-    # Inside a container the dev server must listen on all addresses to be reachable from the host.
-    SAMPLE_DATA_BIND: 0.0.0.0
-
 services:
-  # Shell, tasks and the VS Code dev container.
+  # Shell, tasks and the VS Code dev container; the other services extend it (Compose merges environment, ports and
+  # volumes key by key, so a service only adds what it needs).
   dev:
-    <<: *dev
+    image: stats-webui-plus-dev
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        # Your user's IDs, so files written into the checkout belong to you (CI passes its own).
+        USER_UID: ${USER_UID:-1000}
+        USER_GID: ${USER_GID:-1000}
+    working_dir: /workspace
+    init: true
+    # Chromium needs more shared memory than Docker's default 64 MB.
+    shm_size: 1gb
+    volumes:
+      - .:/workspace
+      # Named volumes by default; CI sets these to folders it caches.
+      - ${GRADLE_CACHE:-gradle-cache}:/home/dev/.gradle
+      - ${YARN_CACHE:-yarn-cache}:/home/dev/.yarn/berry
+    environment:
+      # Inside a container the dev server must listen on all addresses to be reachable from the host.
+      SAMPLE_DATA_BIND: 0.0.0.0
     command: bash
 
   # The dev server of one loader (fabric/runs/server or neoforge/runs/server). Connect with Minecraft to
   # localhost:25565; the web UI is on 25580 (25590 after scripts/sample_data/sample_data.py).
   server:
-    <<: *dev
+    extends: dev
     command: ["sh", "-c", "./gradlew :${LOADER:-fabric}:runServer"]
     stdin_open: true
     tty: true
@@ -47,7 +45,7 @@ services:
 
   # The web UI's dev server with hot reload; /api and /mojang go to the dev server above.
   web:
-    <<: *dev
+    extends: dev
     command: ["sh", "-c", "docker/tasks.sh web-texts && cd web && corepack yarn install && corepack yarn dev --host 0.0.0.0"]
     environment:
       STATS_API_URL: http://server:${API_PORT:-25580}
@@ -56,7 +54,7 @@ services:
 
   # Screenshots of the running dev server (see scripts/README.md); shares the server's network, so 127.0.0.1 works.
   screenshots:
-    <<: *dev
+    extends: dev
     command: python scripts/screenshots/take_screenshots.py
     network_mode: service:server
     profiles: [tools]

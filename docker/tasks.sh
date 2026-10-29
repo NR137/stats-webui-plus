@@ -11,7 +11,7 @@ minecraft_version() {
 # The web code imports advancementLang.json, which is generated and not in git; this makes only that file.
 web_texts() {
 	if [ ! -f web/src/lib/mc/advancementLang.json ]; then
-		python scripts/textures/extract_mc_textures.py --version "$(minecraft_version)" --lang-only
+		python3 scripts/textures/extract_mc_textures.py --version "$(minecraft_version)" --lang-only
 	fi
 }
 
@@ -27,7 +27,7 @@ task() {
 			web_texts
 			(cd web && corepack yarn install --immutable && corepack yarn check && corepack yarn test) ;;
 		test-scripts) # Python tests of scripts/ (texture script helpers)
-			python -m unittest discover -s scripts/textures -p 'test_*.py' ;;
+			python3 -m unittest discover -s scripts/textures -p 'test_*.py' ;;
 		test) # The quick tests: test-java, test-web and test-scripts
 			task test-java
 			task test-web
@@ -36,17 +36,17 @@ task() {
 			./gradlew :fabric:runGameTest :neoforge:runGameTestServer ;;
 		smoke) # Built JARs on the official servers, with browser checks; needs build first
 			if [ -n "${2:-}" ]; then
-				python scripts/smoke_test/smoke_test.py "$2" --browser
+				python3 scripts/smoke_test/smoke_test.py "$2" --browser
 			else
-				python scripts/smoke_test/smoke_test.py fabric --browser
-				python scripts/smoke_test/smoke_test.py neoforge --browser
+				python3 scripts/smoke_test/smoke_test.py fabric --browser
+				python3 scripts/smoke_test/smoke_test.py neoforge --browser
 			fi ;;
 		client) # Singleplayer on each loader's dev client, on a virtual screen; needs smoke first (its world)
 			if [ -n "${2:-}" ]; then
-				python scripts/smoke_test/client_test.py "$2"
+				python3 scripts/smoke_test/client_test.py "$2"
 			else
-				python scripts/smoke_test/client_test.py fabric
-				python scripts/smoke_test/client_test.py neoforge
+				python3 scripts/smoke_test/client_test.py fabric
+				python3 scripts/smoke_test/client_test.py neoforge
 			fi ;;
 		all) # Everything CI runs
 			task test
