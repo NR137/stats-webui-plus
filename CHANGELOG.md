@@ -99,6 +99,9 @@ reworked web UI. All changes below are relative to mc-stats-webui 1.2.1.
   it again, and `/reload` does the same (for network drives that don't report changes). A new `port` or `bind`
   rebinds the web server; only a new `world` waits for a restart. A file that can't be read is reported in the log,
   and the previous settings stay.
+- `webThreads` option (default `0`, automatic): how many threads answer web requests. Automatic is half the CPUs
+  the server may use, at least 1 and at most 4; mc-stats-webui always used 4. In the load test, 4 threads on 2 CPUs
+  were the slowest setting and slowed the game's ticks the most.
 
 #### Credits and identity
 

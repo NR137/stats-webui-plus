@@ -43,6 +43,7 @@ class WebConfigTest {
 		assertEquals("", config.world());
 		assertEquals(15000, config.refreshCooldownMs());
 		assertEquals(0, config.saveIntervalSeconds());
+		assertEquals(0, config.webThreads());
 		assertEquals("en", config.defaultLanguage());
 		assertEquals(List.of("de", "en", "es", "fr"), config.languages());
 		assertEquals("stats_webui_plus/header.png", config.headerImage());
@@ -169,6 +170,31 @@ class WebConfigTest {
 
 		assertTrue(high >= 0 && high <= 60000, "refreshCooldownMs " + high);
 		assertTrue(low >= 0 && low <= 60000, "refreshCooldownMs " + low);
+	}
+
+	/** README: webThreads 0 = half the CPUs, at least 1 and at most 4; 1–16 is taken as it is. */
+	@Test
+	void webThreadsAreAutomaticOrAsSet() throws IOException {
+		assertEquals(1, WebConfig.automaticWebThreads(1));
+		assertEquals(1, WebConfig.automaticWebThreads(2));
+		assertEquals(1, WebConfig.automaticWebThreads(3));
+		assertEquals(2, WebConfig.automaticWebThreads(4));
+		assertEquals(3, WebConfig.automaticWebThreads(6));
+		assertEquals(4, WebConfig.automaticWebThreads(8));
+		assertEquals(4, WebConfig.automaticWebThreads(64));
+
+		WebConfig automatic = loadWith("{}");
+		assertEquals(WebConfig.automaticWebThreads(Runtime.getRuntime().availableProcessors()), automatic.webThreadCount());
+		WebConfig set = loadWith("{\"webThreads\": 6}");
+		assertEquals(6, set.webThreads());
+		assertEquals(6, set.webThreadCount());
+		assertEquals(16, loadWith("{\"webThreads\": 16}").webThreadCount());
+	}
+
+	@Test
+	void webThreadsStayInRange() throws IOException {
+		assertEquals(0, loadWith("{\"webThreads\": 17}").webThreads());
+		assertEquals(0, loadWith("{\"webThreads\": -1}").webThreads());
 	}
 
 	@Test

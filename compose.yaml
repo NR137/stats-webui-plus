@@ -19,11 +19,6 @@ services:
         # Your user's IDs, so files written into the checkout belong to you (CI passes its own).
         USER_UID: ${USER_UID:-1000}
         USER_GID: ${USER_GID:-1000}
-        # The image carries the information for reusing its layers, so a cleaned-up build cache (e.g. after
-        # restarting Docker) doesn't mean building it again from scratch.
-        BUILDKIT_INLINE_CACHE: 1
-      cache_from:
-        - stats-webui-plus-dev
     working_dir: /workspace
     init: true
     # Chromium needs more shared memory than Docker's default 64 MB.

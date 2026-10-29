@@ -15,8 +15,9 @@ import java.net.InetSocketAddress;
 import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 public final class StatsHttpServer {
 	private static final StatsHttpServer INSTANCE = new StatsHttpServer();
@@ -27,7 +28,7 @@ public final class StatsHttpServer {
 	private final ServerIconHandler serverIconHandler = new ServerIconHandler();
 	private final MojangProxy mojangProxy = new MojangProxy();
 	private HttpServer httpServer;
-	private ExecutorService executor;
+	private ThreadPoolExecutor executor;
 	private ConfigWatcher watcher;
 	private volatile MinecraftServer minecraft;
 
@@ -47,7 +48,8 @@ public final class StatsHttpServer {
 		this.config = WebConfig.load();
 		this.apiHandler = new ApiHandler(config);
 		this.minecraft = server;
-		executor = Executors.newFixedThreadPool(4, runnable -> {
+		int threads = config.webThreadCount();
+		executor = new ThreadPoolExecutor(threads, threads, 0, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(), runnable -> {
 			Thread thread = new Thread(runnable, McStatsWebui.MOD_ID);
 			thread.setDaemon(true);
 			return thread;
@@ -69,10 +71,11 @@ public final class StatsHttpServer {
 		httpServer.start();
 		logHeaderImage();
 		McStatsWebui.LOGGER.info(
-			"Stats web UI listening on http://{}:{}/ world={}",
+			"Stats web UI listening on http://{}:{}/ world={}, {} threads",
 			config.bind(),
 			config.port(),
-			config.world().isEmpty() ? "(active save)" : config.world()
+			config.world().isEmpty() ? "(active save)" : config.world(),
+			threads
 		);
 		watcher = new ConfigWatcher(WebConfig.path(), () -> reloadConfig("file changed"));
 		watcher.start();
@@ -116,12 +119,29 @@ public final class StatsHttpServer {
 		if (!next.world().equals(previous.world())) {
 			McStatsWebui.LOGGER.warn("The world folder changes after a restart of the server");
 		}
+		resizeExecutor(next.webThreadCount());
 		config = next;
 		apiHandler = new ApiHandler(next);
 		if (!next.headerImage().equals(previous.headerImage())) {
 			logHeaderImage();
 		}
 		McStatsWebui.LOGGER.info("Reloaded config ({}); open pages show changes after a reload", reason);
+	}
+
+	/** A new webThreads applies at once: busy threads finish their request first. */
+	private void resizeExecutor(int threads) {
+		if (executor == null || executor.getCorePoolSize() == threads) {
+			return;
+		}
+		// The core size may never exceed the maximum, so the order depends on the direction.
+		if (threads > executor.getMaximumPoolSize()) {
+			executor.setMaximumPoolSize(threads);
+			executor.setCorePoolSize(threads);
+		} else {
+			executor.setCorePoolSize(threads);
+			executor.setMaximumPoolSize(threads);
+		}
+		McStatsWebui.LOGGER.info("Stats web UI now answers on {} threads", threads);
 	}
 
 	private HttpServer bind(WebConfig settings) throws IOException {

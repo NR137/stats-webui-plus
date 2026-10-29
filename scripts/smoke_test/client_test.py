@@ -208,7 +208,7 @@ def main() -> None:
 		or re.search(rf'(ERROR|WARN).*({MOD_ID}|webui\.stats\.mc)', line)
 		or re.search(r'webui\.stats\.mc\.\S+(Exception|Error)', line))
 	]
-	problems = without_mojang_outages(problems)
+	problems = without_mojang_outages(problems, log.splitlines())
 	for line in problems[:20]:
 		print('        ' + line[:300])
 	check(not problems, f'no errors or warnings from the mod or mixins ({len(problems)} found)')

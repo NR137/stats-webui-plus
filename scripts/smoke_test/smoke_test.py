@@ -37,6 +37,7 @@ PROPERTIES = dict(
 MOD_ID = PROPERTIES['mod_id']
 # What the skin proxy logs when Mojang can't be reached (see without_mojang_outages).
 MOJANG_OUTAGE = 'Mojang proxy failed for https://'
+MOJANG_NETWORK_ERROR = r'java\.net\.(http\.Http(Connect)?TimeoutException|ConnectException|UnknownHostException|NoRouteToHostException|SocketException)'
 MOD_VERSION = PROPERTIES['mod_version']
 MC_VERSION = PROPERTIES['minecraft_version']
 FULL_VERSION = f'{MOD_VERSION}+{MC_VERSION}'
@@ -328,16 +329,20 @@ def check_reload(base: str, config: Path) -> None:
 	check(address == 'changed.example.com', f'a saved config applies without restart (got {address})')
 
 
-def without_mojang_outages(problems: list[str]) -> list[str]:
+def without_mojang_outages(problems: list[str], log: list[str]) -> list[str]:
 	"""Mojang's servers being unreachable (a timeout from a CI runner) is no error of the mod: shown, not counted.
 
 	The skin proxy answers 502 then and logs this warning, which the tests can't prevent: the mod asks Mojang for the
-	skins of the most played players at startup.
+	skins of the most played players at startup. Only network errors count as an outage (the exception on the next
+	line); anything else the proxy fails at, such as a profile it can't read, stays an error.
 	"""
-	outages = [line for line in problems if MOJANG_OUTAGE in line]
-	for line in outages[:5]:
+	outages = set()
+	for index, line in enumerate(log[:-1]):
+		if MOJANG_OUTAGE in line and re.match(MOJANG_NETWORK_ERROR, log[index + 1]):
+			outages.add(line)
+	for line in sorted(outages)[:5]:
 		print('  note  Mojang unreachable, not counted: ' + line[:200])
-	return [line for line in problems if MOJANG_OUTAGE not in line]
+	return [line for line in problems if line not in outages]
 
 
 def check_log(log: str) -> None:
@@ -351,7 +356,7 @@ def check_log(log: str) -> None:
 	]
 	# The one warning this run causes on purpose.
 	problems = [line for line in problems if 'Hiding link //evil.example.com' not in line]
-	problems = without_mojang_outages(problems)
+	problems = without_mojang_outages(problems, log.splitlines())
 	for line in problems[:20]:
 		print('        ' + line)
 	check(not problems, f'no errors or warnings from the mod or mixins ({len(problems)} found)')
@@ -456,6 +461,24 @@ def wait_for(condition, seconds: float = 30) -> bool:
 	return False
 
 
+def check_web_threads(base: str, config: Path, server: 'Server') -> None:
+	"""README: webThreads 0 = automatic, other values as set; like every setting, it applies without a restart."""
+	print('Web threads', flush=True)
+	started = next((line for line in server.output if 'Stats web UI listening on' in line), '')
+	check(re.search(r', [1-4] threads', started) is not None, f'automatic web threads at startup: 1 to 4 ({started[-40:]})')
+	set_config(config, webThreads=3)
+	check(wait_for(lambda: any('now answers on 3 threads' in line for line in server.output), 20),
+		'a new webThreads applies while running')
+	results: list[int] = []
+	threads = [threading.Thread(target=lambda: results.append(get(base, '/api/players').status)) for _ in range(12)]
+	for thread in threads:
+		thread.start()
+	for thread in threads:
+		thread.join(timeout=30)
+	check(results == [200] * 12, f'12 requests at once on 3 threads all succeed ({results})')
+	set_config(config, webThreads=0)
+
+
 def check_datapack_reload(base: str, folder: Path, server: 'Server') -> None:
 	"""CHANGELOG: after /reload the advancements follow the new data packs (added or removed advancements)."""
 	print('/reload with a new data pack', flush=True)
@@ -545,6 +568,7 @@ def main() -> None:
 				browser_checks.run(base, names, check)
 			check_reload(base, config)
 			base = check_port_change(base, config)
+			check_web_threads(base, config, server)
 			check_datapack_reload(base, folder, server)
 	finally:
 		server.stop()

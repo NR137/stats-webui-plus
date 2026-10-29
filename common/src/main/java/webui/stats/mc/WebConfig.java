@@ -45,6 +45,10 @@ public final class WebConfig {
 	// 0: online players are saved only by Minecraft itself, every 5 minutes and on logout.
 	public static final int DEFAULT_SAVE_INTERVAL_SECONDS = 0;
 	public static final int MAX_SAVE_INTERVAL_SECONDS = 3600;
+	// 0: half the CPUs Java may use (a container's limit, not the machine's), at least 1 and at most 4. More threads than
+	// that took CPU time from the game in the load test (scripts/load_test) and were barely faster.
+	public static final int DEFAULT_WEB_THREADS = 0;
+	public static final int MAX_WEB_THREADS = 16;
 	public static final String DEFAULT_LANGUAGE = "en";
 	public static final List<String> AVATAR_POSES = List.of("idle", "walk", "run", "fly");
 	public static final String DEFAULT_AVATAR_POSE = "walk";
@@ -70,6 +74,7 @@ public final class WebConfig {
 	private final Object windowTitle;
 	private final int refreshCooldownMs;
 	private final int saveIntervalSeconds;
+	private final int webThreads;
 	private final String defaultLanguage;
 	private final List<String> languages;
 	private final String headerImage;
@@ -92,6 +97,7 @@ public final class WebConfig {
 		Object windowTitle,
 		int refreshCooldownMs,
 		int saveIntervalSeconds,
+		int webThreads,
 		String defaultLanguage,
 		List<String> languages,
 		String headerImage,
@@ -113,6 +119,7 @@ public final class WebConfig {
 		this.windowTitle = windowTitle;
 		this.refreshCooldownMs = refreshCooldownMs;
 		this.saveIntervalSeconds = saveIntervalSeconds;
+		this.webThreads = webThreads;
 		this.defaultLanguage = defaultLanguage;
 		this.languages = List.copyOf(languages);
 		this.headerImage = headerImage;
@@ -154,6 +161,21 @@ public final class WebConfig {
 	/** Also saves online players' stats and advancements this often, so a crash loses less; 0 leaves it to Minecraft. */
 	public int saveIntervalSeconds() {
 		return saveIntervalSeconds;
+	}
+
+	/** Threads answering web requests as configured; 0 = automatic, see {@link #webThreadCount()}. */
+	public int webThreads() {
+		return webThreads;
+	}
+
+	/** Threads answering web requests: webThreads, or for 0 the automatic count for this machine. */
+	public int webThreadCount() {
+		return webThreads > 0 ? webThreads : automaticWebThreads(Runtime.getRuntime().availableProcessors());
+	}
+
+	/** Half the CPUs, at least 1 and at most 4: the game keeps the other half. */
+	public static int automaticWebThreads(int cpus) {
+		return Math.clamp(cpus / 2, 1, 4);
 	}
 
 	/** Web UI language for visitors who haven't picked one and whose browser languages aren't supported. */
@@ -260,6 +282,7 @@ public final class WebConfig {
 			DEFAULT_WINDOW_TITLE,
 			DEFAULT_REFRESH_COOLDOWN_MS,
 			DEFAULT_SAVE_INTERVAL_SECONDS,
+			DEFAULT_WEB_THREADS,
 			DEFAULT_LANGUAGE,
 			LANGUAGES,
 			DEFAULT_HEADER_IMAGE,
@@ -378,6 +401,11 @@ public final class WebConfig {
 			);
 			saveIntervalSeconds = DEFAULT_SAVE_INTERVAL_SECONDS;
 		}
+		int webThreads = json.has("webThreads") ? json.get("webThreads").getAsInt() : DEFAULT_WEB_THREADS;
+		if (webThreads < 0 || webThreads > MAX_WEB_THREADS) {
+			McStatsWebui.LOGGER.warn("webThreads must be between 0 and {}, using {} (automatic)", MAX_WEB_THREADS, DEFAULT_WEB_THREADS);
+			webThreads = DEFAULT_WEB_THREADS;
+		}
 		String defaultLanguage = text(json, "defaultLanguage", DEFAULT_LANGUAGE).toLowerCase(Locale.ROOT);
 		if (!LANGUAGES.contains(defaultLanguage)) {
 			McStatsWebui.LOGGER.warn("defaultLanguage must be one of {}, using {}", LANGUAGES, DEFAULT_LANGUAGE);
@@ -464,6 +492,7 @@ public final class WebConfig {
 			windowTitle,
 			refreshCooldownMs,
 			saveIntervalSeconds,
+			webThreads,
 			defaultLanguage,
 			languages,
 			headerImage,
@@ -533,6 +562,7 @@ public final class WebConfig {
 		body.put("windowTitle", config.windowTitle());
 		body.put("refreshCooldownMs", config.refreshCooldownMs());
 		body.put("saveIntervalSeconds", config.saveIntervalSeconds());
+		body.put("webThreads", config.webThreads());
 		body.put("defaultLanguage", config.defaultLanguage());
 		body.put("languages", config.languages());
 		body.put("headerImage", config.headerImage());

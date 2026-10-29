@@ -38,6 +38,7 @@ Settings live in `config/stats_webui_plus.json` on the server. The file is creat
 | `windowTitle` | `"{page} - My Server"` per language | Browser tab title; text per language or one text for all; each must contain `{page}` (the page name) |
 | `refreshCooldownMs` | `15000` | Cache reuse window in ms, see Stats cache below; `0`–`60000` |
 | `saveIntervalSeconds` | `0` | Also saves online players' stats and advancements this often, so a server crash loses less; `0` leaves it to Minecraft (every 5 minutes and on logout); `0`–`3600` |
+| `webThreads` | `0` | Threads answering web requests; `0` = automatic: half the server's CPUs (a container's limit counts), at least 1 and at most 4, so the game keeps the rest. Even 1 thread answered about 900 requests per second in the load test; `0`–`16` |
 | `defaultLanguage` | `"en"` | UI language for visitors whose browser languages are all unsupported (or disabled) |
 | `languages` | `["de", "en", "es", "fr"]` | Languages offered in the UI; e.g. `["de", "en"]`. With a single language the language switcher is hidden |
 | `headerImage` | `"stats_webui_plus/header.png"` | Header image, relative to the `config/` folder; `""` turns it off |
