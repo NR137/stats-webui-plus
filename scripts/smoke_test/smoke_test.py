@@ -35,6 +35,8 @@ PROPERTIES = dict(
 	if '=' in line and not line.lstrip().startswith('#')
 )
 MOD_ID = PROPERTIES['mod_id']
+# What the skin proxy logs when Mojang can't be reached (see without_mojang_outages).
+MOJANG_OUTAGE = 'Mojang proxy failed for https://'
 MOD_VERSION = PROPERTIES['mod_version']
 MC_VERSION = PROPERTIES['minecraft_version']
 FULL_VERSION = f'{MOD_VERSION}+{MC_VERSION}'
@@ -326,6 +328,18 @@ def check_reload(base: str, config: Path) -> None:
 	check(address == 'changed.example.com', f'a saved config applies without restart (got {address})')
 
 
+def without_mojang_outages(problems: list[str]) -> list[str]:
+	"""Mojang's servers being unreachable (a timeout from a CI runner) is no error of the mod: shown, not counted.
+
+	The skin proxy answers 502 then and logs this warning, which the tests can't prevent: the mod asks Mojang for the
+	skins of the most played players at startup.
+	"""
+	outages = [line for line in problems if MOJANG_OUTAGE in line]
+	for line in outages[:5]:
+		print('  note  Mojang unreachable, not counted: ' + line[:200])
+	return [line for line in problems if MOJANG_OUTAGE not in line]
+
+
 def check_log(log: str) -> None:
 	print('Server log', flush=True)
 	check(re.search(r'Cached \d+ frontend files', log) is not None, 'the mod started its web server')
@@ -337,6 +351,7 @@ def check_log(log: str) -> None:
 	]
 	# The one warning this run causes on purpose.
 	problems = [line for line in problems if 'Hiding link //evil.example.com' not in line]
+	problems = without_mojang_outages(problems)
 	for line in problems[:20]:
 		print('        ' + line)
 	check(not problems, f'no errors or warnings from the mod or mixins ({len(problems)} found)')

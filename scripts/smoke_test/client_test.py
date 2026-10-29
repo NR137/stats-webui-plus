@@ -23,7 +23,8 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from smoke_test import CACHE, MC_VERSION, MOD_ID, ROOT, check, encoded, failures, get, is_json  # noqa: E402
+from smoke_test import (CACHE, MC_VERSION, MOD_ID, ROOT, check, encoded, failures, get, is_json,  # noqa: E402
+	without_mojang_outages)
 
 PORT = 25583
 START_TIMEOUT_S = 900  # The first start downloads the client's assets.
@@ -207,6 +208,7 @@ def main() -> None:
 		or re.search(rf'(ERROR|WARN).*({MOD_ID}|webui\.stats\.mc)', line)
 		or re.search(r'webui\.stats\.mc\.\S+(Exception|Error)', line))
 	]
+	problems = without_mojang_outages(problems)
 	for line in problems[:20]:
 		print('        ' + line[:300])
 	check(not problems, f'no errors or warnings from the mod or mixins ({len(problems)} found)')
