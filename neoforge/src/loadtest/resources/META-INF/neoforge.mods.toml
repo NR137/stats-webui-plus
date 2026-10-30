@@ -1,0 +1,16 @@
+# Only for scripts/load_test: logs in online test players. Never put this on a real server.
+modLoader="javafml"
+loaderVersion="[1,)"
+license="MIT"
+
+[[mods]]
+modId="stats_webui_plus_loadtest"
+version="1.0.0"
+displayName="Stats WebUI Plus load test players"
+
+[[dependencies.stats_webui_plus_loadtest]]
+    modId="stats_webui_plus"
+    type="required"
+    versionRange="*"
+    ordering="AFTER"
+    side="SERVER"

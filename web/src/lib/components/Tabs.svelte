@@ -2,6 +2,8 @@
 	export type TabItem = {
 		id: string;
 		label: string;
+		// When set, the tab is a link to this URL and `selected` should follow the URL.
+		href?: string;
 	};
 
 	let {
@@ -23,16 +25,30 @@
 	aria-label={label}
 >
 	{#each tabs as tab (tab.id)}
-		<button
-			type="button"
-			class="mc-btn"
-			class:on={selected === tab.id}
-			role="tab"
-			aria-selected={selected === tab.id}
-			onclick={() => (selected = tab.id)}
-		>
-			{tab.label}
-		</button>
+		{#if tab.href}
+			<a
+				class="mc-btn"
+				class:on={selected === tab.id}
+				role="tab"
+				aria-selected={selected === tab.id}
+				href={tab.href}
+				data-sveltekit-noscroll
+				data-sveltekit-keepfocus
+			>
+				{tab.label}
+			</a>
+		{:else}
+			<button
+				type="button"
+				class="mc-btn"
+				class:on={selected === tab.id}
+				role="tab"
+				aria-selected={selected === tab.id}
+				onclick={() => (selected = tab.id)}
+			>
+				{tab.label}
+			</button>
+		{/if}
 	{/each}
 </div>
 

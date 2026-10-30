@@ -1,0 +1,75 @@
+# Everything runs in one image (docker/Dockerfile); only Docker is needed on the host. Tasks:
+#   docker compose run --rm dev ./tasks.sh <task>    (build, test, gametest, smoke, all; see ./tasks.sh)
+#   docker compose up server                               Fabric dev server (LOADER=neoforge for NeoForge)
+#   docker compose up web                                  web UI with hot reload on http://localhost:5173
+name: stats-webui-plus
+
+services:
+  # Shell, tasks and the VS Code dev container; the other services extend it (Compose merges environment, ports and
+  # volumes key by key, so a service only adds what it needs).
+  dev:
+    image: stats-webui-plus-dev
+    # Checks the image before every start and rebuilds it when docker/Dockerfile, .tool-versions or
+    # scripts/requirements.txt changed (about a second when nothing changed). CI builds it beforehand and sets never.
+    pull_policy: ${DEV_IMAGE_POLICY:-build}
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        # Your user's IDs, so files written into the checkout belong to you (CI passes its own).
+        USER_UID: ${USER_UID:-1000}
+        USER_GID: ${USER_GID:-1000}
+    working_dir: /workspace
+    init: true
+    # Chromium needs more shared memory than Docker's default 64 MB.
+    shm_size: 1gb
+    volumes:
+      - .:/workspace
+      # Named volumes by default; CI sets these to folders it caches.
+      - ${GRADLE_CACHE:-gradle-cache}:/home/dev/.gradle
+      - ${YARN_CACHE:-yarn-cache}:/home/dev/.yarn/berry
+    environment:
+      # Inside a container the dev server must listen on all addresses to be reachable from the host.
+      SAMPLE_DATA_BIND: 0.0.0.0
+    command: bash
+
+  # The dev server of one loader (fabric/runs/server or neoforge/runs/server). Connect with Minecraft to
+  # localhost:25565; the web UI is on 25580 (25590 after scripts/sample_data/sample_data.py).
+  server:
+    extends: dev
+    command: ["sh", "-c", "./gradlew :${LOADER:-fabric}:runServer"]
+    stdin_open: true
+    tty: true
+    ports:
+      - "25565:25565"
+      - "25580:25580"
+      - "25590:25590"
+
+  # The web UI's dev server with hot reload; /api and /mojang go to the dev server above.
+  web:
+    extends: dev
+    command: ["sh", "-c", "./tasks.sh web-texts && cd web && corepack yarn install && corepack yarn dev --host 0.0.0.0"]
+    environment:
+      STATS_API_URL: http://server:${API_PORT:-25580}
+    ports:
+      - "5173:5173"
+
+  # Screenshots of the running dev server (see scripts/README.md); shares the server's network, so 127.0.0.1 works.
+  screenshots:
+    extends: dev
+    command: python scripts/screenshots/take_screenshots.py
+    network_mode: service:server
+    profiles: [tools]
+
+  # Load test with fixed resources, so runs on different machines can be compared (scripts/load_test/load_test.py).
+  # Needs ./tasks.sh build first. LOADER, LOAD_CPUS, LOAD_MEMORY and LOAD_ARGS (e.g. "--players 500") change it.
+  load:
+    extends: dev
+    command: ["sh", "-c", "python3 scripts/load_test/load_test.py ${LOADER:-fabric} ${LOAD_ARGS:-}"]
+    cpus: ${LOAD_CPUS:-2}
+    mem_limit: ${LOAD_MEMORY:-4g}
+    profiles: [tools]
+
+volumes:
+  gradle-cache:
+  yarn-cache:

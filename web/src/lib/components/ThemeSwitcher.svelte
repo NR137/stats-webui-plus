@@ -30,5 +30,6 @@
 	label={t('theme.label')}
 	value={theme.preference}
 	{options}
+	showLabel
 	onselect={(next) => setTheme(next as Theme)}
 />

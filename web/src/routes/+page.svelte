@@ -7,7 +7,7 @@
 	import SearchField from '$lib/components/SearchField.svelte';
 	import Tabs from '$lib/components/Tabs.svelte';
 	import Tooltip from '$lib/components/Tooltip.svelte';
-	import { branding } from '$lib/branding.svelte';
+	import { pageTitleTag } from '$lib/branding.svelte';
 	import { boardHint, i18n, pageTitle, t, tDynamic } from '$lib/i18n/i18n.svelte';
 	import type { LeaderboardResponse } from '$lib/types';
 
@@ -68,8 +68,11 @@
 </script>
 
 <svelte:head>
-	<title>{pageTitle(t('nav.home'))}</title>
+	<title>{pageTitle(t('nav.ranking'))}</title>
 </svelte:head>
+
+<svelte:element this={pageTitleTag()} class="page-title">{t('home.heading')}</svelte:element>
+<p class="lead">{t('home.lead')}</p>
 
 {#if failed}
 	<p class="empty">{t('home.apiError')}</p>
@@ -80,7 +83,7 @@
 		{#if ranking && ranking.entries.length > 0}
 			<HomePodium entries={ranking.entries} coin={selected === 'champion'} hint={hint} />
 		{/if}
-		<Tabs {tabs} bind:selected label={branding.title} />
+		<Tabs {tabs} bind:selected label={t('home.heading')} />
 		{#if ranking && ranking.entries.length > 0}
 			<div class="filters">
 				<SearchField bind:value={query} placeholder={t('home.search')} />
@@ -114,6 +117,18 @@
 {/if}
 
 <style>
+	.page-title {
+		/* Same look whether this is the page's h1 or an h2 below the site heading. */
+		font-size: 2rem;
+		margin: 0 0 0.4rem;
+		text-align: center;
+	}
+
+	.lead {
+		color: var(--color-muted);
+		text-align: center;
+	}
+
 	.empty {
 		color: var(--color-muted);
 	}

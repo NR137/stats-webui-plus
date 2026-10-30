@@ -1,7 +1,8 @@
 <script lang="ts">
+	import { pageTitleTag } from '$lib/branding.svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { advancementTitle, matchesAdvancementQuery } from '$lib/advancements';
+	import { compareAdvancementTitles, matchesAdvancementQuery } from '$lib/advancements';
 	import { getAdvancements, getLeaderboards, getPlayerProfile, getPlayers } from '$lib/api';
 	import AdvancementTiles from '$lib/components/AdvancementTiles.svelte';
 	import Loader from '$lib/components/Loader.svelte';
@@ -11,7 +12,7 @@
 	import RankingScore from '$lib/components/RankingScore.svelte';
 	import SearchField from '$lib/components/SearchField.svelte';
 	import Tooltip from '$lib/components/Tooltip.svelte';
-	import { boardHint, i18n, pageTitle, t, tDynamic } from '$lib/i18n/i18n.svelte';
+	import { boardHint, i18n, nameComparer, pageTitle, t, tDynamic } from '$lib/i18n/i18n.svelte';
 	import { gradeItems, gradeOrder } from '$lib/playerStats';
 	import { cappedResults, deferredValue } from '$lib/search.svelte';
 	import type { AdvancementInfo, LeaderboardsResponse, PlayerDetail, PlayerSummary } from '$lib/types';
@@ -44,14 +45,16 @@
 
 	const vanillaLowerWins = new Set(['minecraft:deaths']);
 
-	let catalog = $state<LeaderboardsResponse | null>(null);
+	// Raw: replaced as a whole when loaded, never changed in place; deep reactivity would proxy every row.
+	let catalog = $state.raw<LeaderboardsResponse | null>(null);
 	let advancementCatalog = $state<AdvancementInfo[]>([]);
 	let players = $state<PlayerSummary[]>([]);
 	let playersReady = $state(false);
 	let left = $state('');
 	let right = $state('');
-	let leftProfile = $state<PlayerDetail | null>(null);
-	let rightProfile = $state<PlayerDetail | null>(null);
+	// Raw: replaced as a whole when loaded, never changed in place; deep reactivity would proxy every row.
+	let leftProfile = $state.raw<PlayerDetail | null>(null);
+	let rightProfile = $state.raw<PlayerDetail | null>(null);
 	let failed = $state(false);
 	let leftFailed = $state(false);
 	let rightFailed = $state(false);
@@ -213,12 +216,7 @@
 						holders: 0
 					}
 			)
-			.sort((leftItem, rightItem) =>
-				advancementTitle(leftItem.id, leftItem.title).localeCompare(
-					advancementTitle(rightItem.id, rightItem.title),
-					i18n.locale
-				)
-			);
+			.sort(compareAdvancementTitles);
 	}
 
 	function filterExclusive(items: AdvancementInfo[], needle: string, sectionHit: boolean) {
@@ -436,7 +434,14 @@
 					hint: vanillaHint(group, id)
 				});
 			}
-			rows.sort((leftRow, rightRow) => Math.max(rightRow.a, rightRow.b) - Math.max(leftRow.a, leftRow.b));
+			// Each row already carries its name, so the sort doesn't look it up on every comparison.
+			const compare = nameComparer();
+			rows.sort(
+				(leftRow, rightRow) =>
+					Math.max(rightRow.a, rightRow.b) - Math.max(leftRow.a, leftRow.b) ||
+					compare(leftRow.label, rightRow.label) ||
+					leftRow.id.localeCompare(rightRow.id)
+			);
 			return {
 				id: group,
 				title: tDynamic('player.group', group),
@@ -590,7 +595,7 @@
 	<title>{pageTitle(t('nav.compare'))}</title>
 </svelte:head>
 
-<h1>{t('compare.heading')}</h1>
+<svelte:element this={pageTitleTag()} class="page-title">{t('compare.heading')}</svelte:element>
 <p class="muted">{failed ? t('compare.loadError') : t('compare.lead')}</p>
 
 {#if !playersReady}
@@ -784,7 +789,10 @@
 {/if}
 
 <style>
-	h1 {
+	.page-title {
+		/* Same look whether this is the page's h1 or an h2 below the site heading. */
+		font-size: 2rem;
+		margin: 0.67em 0;
 		text-align: center;
 	}
 
@@ -828,7 +836,7 @@
 		gap: 0.55rem;
 	}
 
-	h2 {
+	h2:not(.page-title) {
 		margin: 0;
 	}
 

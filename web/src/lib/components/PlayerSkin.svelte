@@ -2,6 +2,7 @@
 	import Icon from '$lib/components/Icon.svelte';
 	import type { IconName } from '$lib/components/iconNames';
 	import Loader from '$lib/components/Loader.svelte';
+	import { branding } from '$lib/branding.svelte';
 	import { t, type MessageKey } from '$lib/i18n/i18n.svelte';
 	import {
 		applyBodyPose,
@@ -9,7 +10,10 @@
 		bodyPoses,
 		createBodyViewer,
 		createPodiumViewer,
-		defaultBodyZoom,
+		defaultBodyPose,
+		isBodyPose,
+		fitBodyZoom,
+		setBodyAngle,
 		renderHeadSkin,
 		updateBodySkin,
 		type BodyHandle,
@@ -17,6 +21,7 @@
 		type SkinVariant
 	} from '$lib/skins/render';
 	import type { BackEquipment, SkinViewer } from '@daidr/minecraft-skin-renderer';
+	import { untrack } from 'svelte';
 
 	let {
 		uuid,
@@ -37,7 +42,14 @@
 	let failed = $state(false);
 	let loading = $state(true);
 	let viewer = $state<SkinViewer | null>(null);
-	let pose = $state<BodyPose>('run');
+	let pose = $state<BodyPose>(defaultBodyPose);
+	// Server settings (config avatarPose / avatarAngle / avatarRotate) for the player page avatar.
+	const configuredPose = $derived(isBodyPose(branding.avatarPose) ? branding.avatarPose : defaultBodyPose);
+	const configuredAngle = $derived(branding.avatarAngle);
+	const configuredRotate = $derived(branding.avatarRotate);
+	// Once the visitor picks a pose or toggles rotation with the buttons, later settings don't override it.
+	let poseChosen = false;
+	let rotateChosen = false;
 	let paused = $state(false);
 	let autoRotate = $state(false);
 	let scrollZoom = $state(false);
@@ -118,7 +130,9 @@
 		failed = false;
 		loading = true;
 		viewer = null;
-		pose = view === 'podium' ? 'idle' : 'run';
+		pose = view === 'podium' ? 'idle' : defaultBodyPose;
+		poseChosen = false;
+		rotateChosen = false;
 		paused = view === 'podium';
 		autoRotate = false;
 		scrollZoom = false;
@@ -184,14 +198,68 @@
 		};
 	});
 
+	// Apply the configured pose and angle once the viewer exists, and again if the settings arrive later
+	// (the player page can create its viewer before /api/status has answered).
+	$effect(() => {
+		const nextPose = configuredPose;
+		const angle = configuredAngle;
+		const rotate = configuredRotate;
+		const current = viewer;
+		if (presentation !== 'default' || variant !== 'body' || !current) {
+			return;
+		}
+		untrack(() => {
+			if (!poseChosen) {
+				pose = nextPose;
+				paused = false;
+				applyBodyPose(current, nextPose);
+				fitCamera();
+			}
+			setBodyAngle(current, angle);
+			if (!rotateChosen) {
+				autoRotate = rotate;
+				current.setAutoRotate(rotate);
+			}
+		});
+	});
+
+	// Keep the drawing buffer at the box size and the body filling it when the box changes size (window resize,
+	// rotating a phone, the info column next to it growing once its data is in).
+	$effect(() => {
+		const root = host;
+		const current = viewer;
+		if (presentation !== 'default' || variant !== 'body' || !root || !current) {
+			return;
+		}
+		const observer = new ResizeObserver(() => {
+			const width = root.clientWidth;
+			const height = root.clientHeight;
+			if (width > 0 && height > 0) {
+				current.resize(width, height);
+				untrack(fitCamera);
+			}
+		});
+		observer.observe(root);
+		return () => observer.disconnect();
+	});
+
+	// Camera distance that fits the current pose into the box, unless the visitor zooms by hand.
+	function fitCamera() {
+		if (viewer && host && !scrollZoom && host.clientWidth > 0 && host.clientHeight > 0) {
+			viewer.setZoom(fitBodyZoom(host.clientWidth, host.clientHeight, pose));
+		}
+	}
+
 	function cyclePose() {
 		const next = bodyPoses[(bodyPoses.indexOf(pose) + 1) % bodyPoses.length];
+		poseChosen = true;
 		pose = next;
 		paused = false;
 		if (!viewer) {
 			return;
 		}
 		applyBodyPose(viewer, next);
+		fitCamera();
 	}
 
 	function togglePaused() {
@@ -208,6 +276,7 @@
 	}
 
 	function toggleAutoRotate() {
+		rotateChosen = true;
 		autoRotate = !autoRotate;
 		viewer?.setAutoRotate(autoRotate);
 	}
@@ -218,9 +287,7 @@
 			return;
 		}
 		viewer.setEnableZoom(scrollZoom);
-		if (!scrollZoom) {
-			viewer.setZoom(defaultBodyZoom);
-		}
+		fitCamera();
 	}
 
 	function cycleEquipment() {

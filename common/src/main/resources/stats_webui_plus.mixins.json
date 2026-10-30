@@ -1,0 +1,18 @@
+{
+	"required": true,
+	"package": "webui.stats.mc.mixin",
+	"compatibilityLevel": "JAVA_25",
+	"mixins": [
+		"PlayerAdvancementsAccessor",
+		"PlayerAdvancementsMixin",
+		"PlayerListMixin",
+		"ServerStatsCounterMixin",
+		"StatsCounterAccessor"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	},
+	"overwrites": {
+		"requireAnnotations": true
+	}
+}
