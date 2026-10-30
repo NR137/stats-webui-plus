@@ -10,6 +10,9 @@ on:
       players:
         description: 'Players in the world'
         default: '200'
+      online:
+        description: 'Of them online, playing all the time (test players)'
+        default: '100'
       clients:
         description: 'Visitors at the same time'
         default: '50'
@@ -60,7 +63,7 @@ jobs:
           LOADER: ${{ matrix.loader }}
           LOAD_CPUS: ${{ inputs.cpus }}
           LOAD_MEMORY: ${{ inputs.memory }}
-          LOAD_ARGS: --players ${{ inputs.players }} --clients ${{ inputs.clients }} --seconds ${{ inputs.seconds }}
+          LOAD_ARGS: --players ${{ inputs.players }} --online ${{ inputs.online }} --clients ${{ inputs.clients }} --seconds ${{ inputs.seconds }}
         run: docker compose --profile tools run --rm -T -e GITHUB_STEP_SUMMARY=/workspace/build/load-test/summary.md load && cat build/load-test/summary.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: attach report

@@ -69,12 +69,14 @@ docker compose run --rm dev ./tasks.sh client neoforge   # one
 
 ## Load test
 
-`load_test/load_test.py` puts the built JAR on the official server (as the smoke test does) with many generated players (copies of the sample players) and runs two phases of many parallel visitors calling a mix of pages and API endpoints: with `refreshCooldownMs` at its default of 15 s, and at 0 (a refresh on every request, the worst case). It reports requests per second, response times (median, 95th and 99th percentile), `503`s and the game's milliseconds per tick (`/tick query`) idle and under load, plus the machine (CPU, CPU and memory limit), to `build/load-test/<loader>.json`.
+`load_test/load_test.py` puts the built JAR on the official server (as the smoke test does) with many generated players (copies of the sample players), 100 of them online, and runs two phases of many parallel visitors calling a mix of pages and API endpoints: with `refreshCooldownMs` at its default of 15 s, and at 0 (a refresh on every request, the worst case). It reports requests per second, response times (median, 95th and 99th percentile), `503`s and the game's milliseconds per tick (`/tick query`) idle and under load, plus the machine (CPU, CPU and memory limit), to `build/load-test/<loader>.json`. 15 seconds of unmeasured load come first: Java compiles the busy code while it runs, and before that the first phase came out slower at random.
+
+The online players come from a small extra mod, the load test add-on (`common/src/loadtest`, built as `build/libs/stats-webui-plus-loadtest-<loader>.jar`, never part of the mod JAR). It logs them in the way a real client is logged in, over a connection in memory, answers the server's keep-alive requests for them and raises their stats on every tick (distance walked, now and then a block mined, an item used, a jump). So every refresh has changed online players whose stats the server thread copies, the only part of the mod that costs the game time. "Idle" in the report is these players playing without visitors. The game tests log in their players the same way (`TestPlayers`). Not covered: real network traffic and clients, which the mod has nothing to do with.
 
 ```
 docker compose run --rm dev ./tasks.sh build
 docker compose --profile tools run --rm load                                   # Fabric, 2 CPUs, 4 GB
-LOADER=neoforge LOAD_CPUS=4 LOAD_ARGS="--players 500 --clients 100" docker compose --profile tools run --rm load
+LOADER=neoforge LOAD_CPUS=4 LOAD_ARGS="--players 500 --online 200 --clients 100" docker compose --profile tools run --rm load
 ```
 
-The `load` service gives the container a fixed share of CPUs and memory, so runs on different machines are comparable in resources (the CPU model is in the report, since its speed still differs). The `load test` workflow (started by hand) runs both loaders on GitHub's x64 and ARM runners and writes the tables into the job summaries. It only fails if more than 1 % of the requests fail. Nobody is online during the test, so a refresh has no online players' stats to copy; the server thread's share of a refresh with many online players isn't measured.
+The `load` service gives the container a fixed share of CPUs and memory, so runs on different machines are comparable in resources (the CPU model is in the report, since its speed still differs). The `load test` workflow (started by hand) runs both loaders on GitHub's x64 and ARM runners and writes the tables into the job summaries. It only fails if more than 1 % of the requests fail or online players are dropped.

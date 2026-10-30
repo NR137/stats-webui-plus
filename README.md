@@ -149,7 +149,7 @@ The SvelteKit UI is built static and shipped **inside both JARs**.
 
 Run one with `docker compose run --rm dev ./tasks.sh <task>`. The `tests` workflow (`.github/workflows/tests.yml`) runs them in the same image: on draft pull requests only the quick tests, on other pull requests, pushes to `main` and before every release all of them.
 
-A **load test** (`scripts/load_test/load_test.py`) measures requests per second, response times and the game's milliseconds per tick with many players and visitors, with fixed resources so machines can be compared: `docker compose --profile tools run --rm load` (after `./tasks.sh build`; `LOADER`, `LOAD_CPUS`, `LOAD_MEMORY`, `LOAD_ARGS`). The `load test` workflow runs it by hand on x64 and ARM runners.
+A **load test** (`scripts/load_test/load_test.py`) measures requests per second, response times and the game's milliseconds per tick with many players (100 of them online and playing, logged in by a test add-on) and visitors, with fixed resources so machines can be compared: `docker compose --profile tools run --rm load` (after `./tasks.sh build`; `LOADER`, `LOAD_CPUS`, `LOAD_MEMORY`, `LOAD_ARGS`). The `load test` workflow runs it by hand on x64 and ARM runners.
 
 A pre-commit hook runs the Java or web tests a commit touches, in the dev container or through Docker. The dev container turns it on; in another clone, run `git config core.hooksPath .githooks` once. `git commit --no-verify` skips it.
 

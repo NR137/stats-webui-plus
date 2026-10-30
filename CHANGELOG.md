@@ -228,7 +228,8 @@ reworked web UI. All changes below are relative to mc-stats-webui 1.2.1.
   and, in headless Chromium, navigation, languages, theme, search, compare, the advancements tab, the 3D avatar and the
   phone layout. A singleplayer test opens a world in each loader's dev client on a virtual screen, checks the integrated
   server's web UI and switches to a fresh world while requests keep coming. A load test (started by hand) measures
-  throughput, response times and tick times with fixed resources on x64 and ARM. The
+  throughput, response times and tick times with many players, 100 of them online and playing, with fixed resources
+  on x64 and ARM. The
   new `tests` workflow runs all of them on every pull request and push to `main`, and the release workflow runs them
   first and stops if one fails. An optional pre-commit hook
   (`git config core.hooksPath .githooks`) runs the tests a commit touches.

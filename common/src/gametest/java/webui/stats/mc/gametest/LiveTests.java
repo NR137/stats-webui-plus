@@ -17,21 +17,17 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import com.mojang.authlib.GameProfile;
-import io.netty.channel.embedded.EmbeddedChannel;
 import net.minecraft.advancements.AdvancementHolder;
 import net.minecraft.gametest.framework.GameTestHelper;
-import net.minecraft.network.Connection;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.server.network.CommonListenerCookie;
 import net.minecraft.stats.Stats;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.storage.LevelResource;
 import webui.stats.mc.WebConfig;
+import webui.stats.mc.loadtest.TestPlayers;
 import webui.stats.mc.stats.PlayerRecord;
 import webui.stats.mc.stats.SessionLog;
 import webui.stats.mc.stats.StatsCache;
@@ -270,20 +266,9 @@ public final class LiveTests {
 		return holder;
 	}
 
-	/**
-	 * A player who logs in like a real client: the server's own login path (PlayerList.placeNewPlayer, as after a
-	 * client's login) with an in-memory connection. Minecraft 26.3 marks GameTestHelper.makeMockServerPlayerInLevel,
-	 * which does the same, for removal without a successor.
-	 */
+	/** A player who logs in like a real client, with an in-memory connection (see TestPlayers). */
 	private static ServerPlayer joinPlayer(GameTestHelper helper, String name) {
-		MinecraftServer server = helper.getLevel().getServer();
-		GameProfile profile = new GameProfile(UUID.randomUUID(), "test_" + name);
-		CommonListenerCookie cookie = CommonListenerCookie.createInitial(profile, false);
-		ServerPlayer player = new ServerPlayer(server, helper.getLevel(), profile, cookie.clientInformation());
-		Connection connection = new Connection(PacketFlow.SERVERBOUND);
-		new EmbeddedChannel(connection);
-		server.getPlayerList().placeNewPlayer(connection, player, cookie);
-		return player;
+		return TestPlayers.join(helper.getLevel().getServer(), helper.getLevel(), UUID.randomUUID(), "test_" + name).player();
 	}
 
 	/** Disconnects the player the way a kick or quit does, through the connection. */

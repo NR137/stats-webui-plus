@@ -12,10 +12,28 @@ base {
 sourceSets {
 	gametest {
 		java.srcDir(rootProject.file('common/src/gametest/java'))
+		java.srcDir(rootProject.file('common/src/loadtest/java'))
 		compileClasspath += sourceSets.main.output
 		runtimeClasspath += sourceSets.main.output
 	}
 }
+
+// Online test players for the load test (scripts/load_test): a small mod of its own, built next to the mod JAR as
+// build/libs/stats-webui-plus-loadtest-{loader}.jar and never part of it. The code is shared (common/src/loadtest);
+// the game tests use its TestPlayers too.
+sourceSets {
+	loadtest {
+		java.srcDir(rootProject.file('common/src/loadtest/java'))
+		compileClasspath += sourceSets.main.output
+	}
+}
+
+def loadtestJar = tasks.register('loadtestJar', Jar) {
+	from sourceSets.loadtest.output
+	archiveFileName = 'stats-webui-plus-loadtest-neoforge.jar'
+	destinationDirectory = layout.buildDirectory.dir('libs')
+}
+tasks.named('assemble') { dependsOn loadtestJar }
 
 neoForge {
 	enable {
@@ -65,6 +83,7 @@ neoForge {
 	}
 
 	addModdingDependenciesTo(sourceSets.gametest)
+	addModdingDependenciesTo(sourceSets.loadtest)
 }
 
 // The mod's web server gets a port of its own during game tests, so the Fabric and NeoForge runs (which Gradle starts
