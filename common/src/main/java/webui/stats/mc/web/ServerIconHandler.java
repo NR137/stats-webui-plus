@@ -4,7 +4,6 @@ import com.sun.net.httpserver.HttpExchange;
 import webui.stats.mc.McStatsWebui;
 
 import java.io.IOException;
-import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -12,29 +11,19 @@ public final class ServerIconHandler {
 	public void handle(HttpExchange exchange) throws IOException {
 		String method = exchange.getRequestMethod();
 		if (!"GET".equalsIgnoreCase(method) && !"HEAD".equalsIgnoreCase(method)) {
-			exchange.sendResponseHeaders(405, -1);
-			exchange.close();
+			HttpJson.empty(exchange, 405);
 			return;
 		}
 
 		Path icon = McStatsWebui.platform().gameDir().resolve("server-icon.png");
 		if (!Files.isRegularFile(icon)) {
-			exchange.sendResponseHeaders(404, -1);
-			exchange.close();
+			HttpJson.empty(exchange, 404);
 			return;
 		}
 
 		byte[] bytes = Files.readAllBytes(icon);
 		exchange.getResponseHeaders().set("Content-Type", "image/png");
 		exchange.getResponseHeaders().set("Cache-Control", "no-cache");
-		boolean head = "HEAD".equalsIgnoreCase(method);
-		exchange.sendResponseHeaders(200, head ? -1 : bytes.length);
-		if (!head) {
-			try (OutputStream out = exchange.getResponseBody()) {
-				out.write(bytes);
-			}
-		} else {
-			exchange.close();
-		}
+		HttpJson.respond(exchange, 200, bytes);
 	}
 }

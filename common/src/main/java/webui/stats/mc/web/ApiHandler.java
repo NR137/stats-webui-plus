@@ -75,9 +75,14 @@ public final class ApiHandler {
 			McStatsWebui.LOGGER.warn("Server thread busy for 5 s, answered a stats request with 503");
 			exchange.getResponseHeaders().set("Retry-After", "5");
 			HttpJson.error(exchange, 503, "busy", "The Minecraft server is busy, try again in a moment");
+		} catch (HttpJson.ConnectionLost e) {
+			throw e;
 		} catch (Exception e) {
 			McStatsWebui.LOGGER.error("API request failed", e);
-			HttpJson.error(exchange, 500, "internal_error", "Internal server error");
+			// Only if nothing was sent yet; a second response would fail as well.
+			if (exchange.getResponseCode() == -1) {
+				HttpJson.error(exchange, 500, "internal_error", "Internal server error");
+			}
 		}
 	}
 

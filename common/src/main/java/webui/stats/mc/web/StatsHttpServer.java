@@ -1,5 +1,6 @@
 package webui.stats.mc.web;
 
+import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import net.minecraft.server.MinecraftServer;
 import webui.stats.mc.ConfigWatcher;
@@ -144,6 +145,10 @@ public final class StatsHttpServer {
 		McStatsWebui.LOGGER.info("Stats web UI now answers on {} threads", threads);
 	}
 
+	private static void connectionLost(HttpExchange exchange, HttpJson.ConnectionLost e) {
+		McStatsWebui.LOGGER.debug("Connection lost while answering {}: {}", exchange.getRequestURI(), e.getMessage());
+	}
+
 	private HttpServer bind(WebConfig settings) throws IOException {
 		HttpServer server = HttpServer.create(new InetSocketAddress(settings.bind(), settings.port()), 0);
 		server.setExecutor(executor);
@@ -155,6 +160,8 @@ public final class StatsHttpServer {
 					return;
 				}
 				apiHandler.handle(exchange, current);
+			} catch (HttpJson.ConnectionLost e) {
+				connectionLost(exchange, e);
 			} catch (Exception e) {
 				McStatsWebui.LOGGER.error("Unhandled API error", e);
 				if (exchange.getResponseCode() == -1) {
@@ -189,6 +196,8 @@ public final class StatsHttpServer {
 					return;
 				}
 				staticHandler.handle(exchange);
+			} catch (HttpJson.ConnectionLost e) {
+				connectionLost(exchange, e);
 			} catch (Exception e) {
 				McStatsWebui.LOGGER.error("Unhandled static error", e);
 			} finally {

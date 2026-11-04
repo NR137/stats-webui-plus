@@ -24,6 +24,10 @@ final class TestServer implements AutoCloseable {
 		server.start();
 	}
 
+	int port() {
+		return server.getAddress().getPort();
+	}
+
 	Response get(String rawPath, String... headers) throws IOException {
 		return request("GET", rawPath, headers);
 	}

@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 <!-- Replace "unreleased" with the release date (YYYY-MM-DD) before running the release workflow. -->
-## [1.3.0] - 2026-10-30
+## [1.3.0] - 2026-11-04
 
 First release of **Stats WebUI Plus**, a fork of [mc-stats-webui](https://github.com/borrageiros/mc-stats-webui) by
 borrageiros. It now runs on Fabric and NeoForge, puts almost no load on the Minecraft server, and comes with a
@@ -266,6 +266,9 @@ reworked web UI. All changes below are relative to mc-stats-webui 1.2.1.
 - The name cache file is written atomically, so it can't be read half-written.
 - A stats request that arrived while the server was stopping could reload the cache from the wrong folder and
   leave it empty.
+- A visitor who leaves while a response is being sent (a closed tab, or the web server stopping as a singleplayer
+  world closes) is no longer logged as two errors with stack traces ("API request failed", "Unhandled API error"),
+  and the mod no longer tries to send an error response over the broken connection.
 
 #### Navigation and layout
 

@@ -23,14 +23,45 @@ public final class HttpJson {
 		byte[] bytes = GSON.toJson(body).getBytes(StandardCharsets.UTF_8);
 		exchange.getResponseHeaders().set("Content-Type", "application/json; charset=utf-8");
 		exchange.getResponseHeaders().set("Cache-Control", cacheControl);
+		respond(exchange, status, bytes);
+	}
+
+	/**
+	 * Sends the status and, except for HEAD requests, the body; every handler answers through here. A connection that
+	 * breaks meanwhile becomes {@link ConnectionLost}.
+	 */
+	public static void respond(HttpExchange exchange, int status, byte[] body) throws IOException {
+		// A second response to one request is a bug of the mod, not a visitor who went away.
+		if (exchange.getResponseCode() != -1) {
+			throw new IllegalStateException("Response " + exchange.getResponseCode() + " was already sent, not sending " + status);
+		}
 		boolean head = "HEAD".equalsIgnoreCase(exchange.getRequestMethod());
-		exchange.sendResponseHeaders(status, head ? -1 : bytes.length);
-		if (!head) {
-			try (OutputStream out = exchange.getResponseBody()) {
-				out.write(bytes);
+		try {
+			exchange.sendResponseHeaders(status, head || body.length == 0 ? -1 : body.length);
+			if (!head && body.length > 0) {
+				try (OutputStream out = exchange.getResponseBody()) {
+					out.write(body);
+				}
+			} else {
+				exchange.close();
 			}
-		} else {
-			exchange.close();
+		} catch (IOException e) {
+			throw new ConnectionLost(e);
+		}
+	}
+
+	/** A response without a body (304, 404, 405, ...). */
+	public static void empty(HttpExchange exchange, int status) throws IOException {
+		respond(exchange, status, new byte[0]);
+	}
+
+	/**
+	 * The visitor's connection broke while the response was being sent: the tab was closed, or the web server stopped
+	 * (a singleplayer world closing, a new port). Nothing the mod did wrong, so it isn't logged as an error.
+	 */
+	public static final class ConnectionLost extends IOException {
+		ConnectionLost(IOException cause) {
+			super(cause.getMessage(), cause);
 		}
 	}
 

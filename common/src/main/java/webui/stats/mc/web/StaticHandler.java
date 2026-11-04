@@ -5,7 +5,6 @@ import webui.stats.mc.McStatsWebui;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.net.JarURLConnection;
 import java.net.URL;
 import java.net.URLConnection;
@@ -59,16 +58,14 @@ public final class StaticHandler {
 	public void handle(HttpExchange exchange) throws IOException {
 		String method = exchange.getRequestMethod();
 		if (!"GET".equalsIgnoreCase(method) && !"HEAD".equalsIgnoreCase(method)) {
-			exchange.sendResponseHeaders(405, -1);
-			exchange.close();
+			HttpJson.empty(exchange, 405);
 			return;
 		}
 
 		String path = exchange.getRequestURI().getPath();
 		path = URLDecoder.decode(path, StandardCharsets.UTF_8);
 		if (climbsUp(path)) {
-			exchange.sendResponseHeaders(400, -1);
-			exchange.close();
+			HttpJson.empty(exchange, 400);
 			return;
 		}
 		if (path.endsWith("/")) {
@@ -82,8 +79,7 @@ public final class StaticHandler {
 		String resource = ROOT + path;
 		byte[] bytes = load(resource);
 		if (bytes == null && isAsset(path)) {
-			exchange.sendResponseHeaders(404, -1);
-			exchange.close();
+			HttpJson.empty(exchange, 404);
 			return;
 		}
 		if (bytes == null && !path.endsWith(".html")) {
@@ -119,8 +115,7 @@ public final class StaticHandler {
 		exchange.getResponseHeaders().set("ETag", etag);
 		if (matches(exchange.getRequestHeaders().getFirst("If-None-Match"), etag)) {
 			exchange.getResponseHeaders().set("Cache-Control", cacheControl(resource));
-			exchange.sendResponseHeaders(304, -1);
-			exchange.close();
+			HttpJson.empty(exchange, 304);
 			return;
 		}
 		send(exchange, 200, mime(resource), bytes, head, resource);
@@ -229,14 +224,7 @@ public final class StaticHandler {
 		if (status == 200) {
 			exchange.getResponseHeaders().set("Cache-Control", cacheControl(resource));
 		}
-		exchange.sendResponseHeaders(status, head ? -1 : bytes.length);
-		if (!head) {
-			try (OutputStream out = exchange.getResponseBody()) {
-				out.write(bytes);
-			}
-		} else {
-			exchange.close();
-		}
+		HttpJson.respond(exchange, status, bytes);
 	}
 
 	/** A ".." segment, also with "\\" as separator. Dots inside a name ("/players/..Steve") are fine. */

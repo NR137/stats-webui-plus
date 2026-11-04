@@ -5,7 +5,6 @@ import webui.stats.mc.McStatsWebui;
 import webui.stats.mc.WebConfig;
 
 import java.io.IOException;
-import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Locale;
@@ -46,14 +45,12 @@ public final class HeaderImageHandler {
 	public static void handle(HttpExchange exchange, WebConfig config) throws IOException {
 		String method = exchange.getRequestMethod();
 		if (!"GET".equalsIgnoreCase(method) && !"HEAD".equalsIgnoreCase(method)) {
-			exchange.sendResponseHeaders(405, -1);
-			exchange.close();
+			HttpJson.empty(exchange, 405);
 			return;
 		}
 		Path file = file(config);
 		if (file == null) {
-			exchange.sendResponseHeaders(404, -1);
-			exchange.close();
+			HttpJson.empty(exchange, 404);
 			return;
 		}
 
@@ -61,15 +58,7 @@ public final class HeaderImageHandler {
 		exchange.getResponseHeaders().set("Content-Type", contentType(file.getFileName().toString()));
 		// The URL from url() carries the file's modification time, so it can be cached.
 		exchange.getResponseHeaders().set("Cache-Control", "public, max-age=86400");
-		boolean head = "HEAD".equalsIgnoreCase(method);
-		exchange.sendResponseHeaders(200, head ? -1 : bytes.length);
-		if (!head) {
-			try (OutputStream out = exchange.getResponseBody()) {
-				out.write(bytes);
-			}
-		} else {
-			exchange.close();
-		}
+		HttpJson.respond(exchange, 200, bytes);
 	}
 
 	private static String contentType(String name) {

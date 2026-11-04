@@ -8,7 +8,6 @@ import com.sun.net.httpserver.HttpExchange;
 import webui.stats.mc.McStatsWebui;
 
 import java.io.IOException;
-import java.io.OutputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -294,15 +293,7 @@ public final class MojangProxy {
 		throws IOException {
 		exchange.getResponseHeaders().set("Content-Type", contentType);
 		exchange.getResponseHeaders().set("Cache-Control", cacheControl);
-		boolean head = "HEAD".equalsIgnoreCase(exchange.getRequestMethod());
-		exchange.sendResponseHeaders(status, head || body.length == 0 ? -1 : body.length);
-		if (!head && body.length > 0) {
-			try (OutputStream out = exchange.getResponseBody()) {
-				out.write(body);
-			}
-		} else {
-			exchange.close();
-		}
+		HttpJson.respond(exchange, status, body);
 	}
 
 	private record Cached(String contentType, byte[] body, long fetchedAt) {
