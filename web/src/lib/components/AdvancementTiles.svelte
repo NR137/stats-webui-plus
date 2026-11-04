@@ -4,7 +4,8 @@
 	let {
 		items,
 		dim,
-		showHolders = false
+		showHolders = false,
+		when
 	}: {
 		items: Array<{
 			id: string;
@@ -16,12 +17,13 @@
 		}>;
 		dim?: (item: { id: string; hidden?: boolean }) => boolean;
 		showHolders?: boolean;
+		when?: (item: { id: string }) => string | undefined;
 	} = $props();
 </script>
 
 <div class="tiles">
 	{#each items as item (item.id)}
-		<AdvancementTile {item} dim={dim?.(item) ?? false} {showHolders} />
+		<AdvancementTile {item} dim={dim?.(item) ?? false} {showHolders} when={when?.(item)} />
 	{/each}
 </div>
 

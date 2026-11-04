@@ -1,29 +1,26 @@
+/// <reference types="vitest/config" />
 import adapter from '@sveltejs/adapter-static';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 import { serverIcon } from './server-icon-plugin.js';
 
+// The running mod; in compose.yaml the dev server's container.
+const api = process.env.STATS_API_URL ?? 'http://127.0.0.1:25580';
+
 export default defineConfig({
 	server: {
 		port: 5173,
 		proxy: {
-			'/api': 'http://127.0.0.1:25580',
-			'/mojang/session': {
-				target: 'https://sessionserver.mojang.com',
-				changeOrigin: true,
-				secure: true,
-				rewrite: (path) => path.replace(/^\/mojang/, '')
-			},
-			'/mojang/textures': {
-				target: 'https://textures.minecraft.net',
-				changeOrigin: true,
-				secure: true,
-				rewrite: (path) => path.replace(/^\/mojang\/textures/, '')
-			}
+			// The mod's API and its Mojang proxy (skin cache, default skins for players without one of their own).
+			'/api': api,
+			'/mojang': api
 		}
 	},
 	preview: {
 		port: 4173
+	},
+	test: {
+		include: ['src/**/*.test.ts']
 	},
 	plugins: [
 		serverIcon(),
@@ -34,6 +31,11 @@ export default defineConfig({
 			},
 			paths: {
 				relative: false
+			},
+			// The mod version from the Gradle build (yarnBuild), so the same sources give the same files; SvelteKit's
+			// default is the build time. yarn dev on its own keeps that default.
+			version: {
+				name: process.env.STATS_WEBUI_VERSION
 			},
 			adapter: adapter({
 				pages: 'build',

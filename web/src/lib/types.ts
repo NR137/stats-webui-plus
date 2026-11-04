@@ -32,6 +32,12 @@ export type PlayerDetail = PlayerSummary & {
 	scorePerHour: number;
 	scorePerHourDisplay: string;
 	trackedPlayers: number;
+	// Epoch milliseconds (UTC), shown in the visitor's time zone; null when unknown.
+	firstJoin: number | null;
+	firstJoinEstimated: boolean;
+	lastLogout: number | null;
+	lastLogoutEstimated: boolean;
+	online: boolean;
 	grades: Record<string, number>;
 	stats: Record<string, PlayerStat>;
 	vanilla?: Record<string, VanillaStat[]>;
@@ -40,6 +46,8 @@ export type PlayerDetail = PlayerSummary & {
 		total: number;
 		rank: number;
 		ids: string[];
+		// Completion time per finished advancement (epoch ms), where Minecraft recorded one.
+		times?: Record<string, number>;
 	};
 };
 
@@ -61,15 +69,39 @@ export type HealthResponse = {
 	version: string;
 };
 
+// Config text: plain, or per language code ({ "en": "Map", "de": "Karte" }).
+export type LocalizedText = string | Record<string, string>;
+
+export type MenuLink = {
+	label: LocalizedText;
+	url: string;
+	newTab: boolean;
+};
+
 export type StatusResponse = {
 	bind: string;
 	trackedPlayers: number;
 	branding?: {
-		title: string;
-		slogan: string;
-		tagline: string;
-		windowTitle: string;
+		windowTitle: LocalizedText;
+		headerImagePosition?: string;
+		siteHeading?: LocalizedText;
+		siteHeadingTagline?: LocalizedText;
+		siteHeadingTaglinePulse?: boolean;
+		siteHeadingSlogan?: LocalizedText;
+		avatarPose?: string;
+		avatarAngle?: number;
+		avatarRotate?: boolean;
+		statusBar?: boolean;
+		serverAddress?: string;
 	};
+	onlinePlayers?: number;
+	maxPlayers?: number;
+	defaultLanguage?: string;
+	languages?: string[];
+	// Custom menu buttons from the config; only ones with a URL are sent.
+	links?: MenuLink[];
+	// URL of the configured header image; absent when there is none.
+	headerImage?: string;
 };
 
 export type LeaderboardBoard = {

@@ -1,0 +1,31 @@
+// VS Code: "Dev Containers: Reopen in Container". The editor stays on your machine; terminal, Gradle, Java, Node,
+// Python and the tests run in the dev image (docker/Dockerfile), with the caches of compose.yaml.
+{
+	"name": "Stats WebUI Plus",
+	"dockerComposeFile": ["../compose.yaml"],
+	"service": "dev",
+	"workspaceFolder": "/workspace",
+	// Keeps the container running while VS Code is attached.
+	"overrideCommand": true,
+	"remoteUser": "dev",
+	// Gives the container user your user's IDs if they differ from the image's 1000.
+	"updateRemoteUserUID": true,
+	// Dev server (game, web UI, sample data web UI) and the web UI's hot reload server; others are forwarded when used.
+	"forwardPorts": [25565, 25580, 25590, 5173],
+	"postCreateCommand": "git config core.hooksPath .githooks && ./tasks.sh web-texts && cd web && corepack yarn install",
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"vscjava.vscode-java-pack",
+				"vscjava.vscode-gradle",
+				"svelte.svelte-vscode",
+				"ms-python.python",
+				"github.vscode-github-actions"
+			],
+			"settings": {
+				"java.import.gradle.enabled": true,
+				"java.configuration.updateBuildConfiguration": "automatic"
+			}
+		}
+	}
+}

@@ -1,5 +1,7 @@
-import { t, tDynamic } from '$lib/i18n/i18n.svelte';
+import { nameComparer, t, tDynamic } from '$lib/i18n/i18n.svelte';
 import type { MessageKey } from '$lib/i18n/messages/es';
+import { ENTITY_ICON_PREFIX } from '$lib/mc/items';
+import { officialName, type NameKind } from '$lib/mc/names.svelte';
 import type { VanillaStat } from '$lib/types';
 
 export const vanillaGroups = [
@@ -108,54 +110,6 @@ const customIcons: Record<string, string> = {
 	'minecraft:walk_under_water_one_cm': 'minecraft:turtle_helmet'
 };
 
-const entityIcons: Record<string, string> = {
-	'minecraft:area_effect_cloud': 'minecraft:lingering_potion',
-	'minecraft:armor_stand': 'minecraft:armor_stand',
-	'minecraft:arrow': 'minecraft:arrow',
-	'minecraft:block_display': 'minecraft:item_frame',
-	'minecraft:breeze_wind_charge': 'minecraft:wind_charge',
-	'minecraft:chest_minecart': 'minecraft:chest_minecart',
-	'minecraft:command_block_minecart': 'minecraft:command_block_minecart',
-	'minecraft:dragon_fireball': 'minecraft:fire_charge',
-	'minecraft:egg': 'minecraft:egg',
-	'minecraft:end_crystal': 'minecraft:end_crystal',
-	'minecraft:ender_pearl': 'minecraft:ender_pearl',
-	'minecraft:evoker_fangs': 'minecraft:totem_of_undying',
-	'minecraft:experience_bottle': 'minecraft:experience_bottle',
-	'minecraft:experience_orb': 'minecraft:experience_bottle',
-	'minecraft:eye_of_ender': 'minecraft:ender_eye',
-	'minecraft:falling_block': 'minecraft:sand',
-	'minecraft:fireball': 'minecraft:fire_charge',
-	'minecraft:firework_rocket': 'minecraft:firework_rocket',
-	'minecraft:fishing_bobber': 'minecraft:fishing_rod',
-	'minecraft:furnace_minecart': 'minecraft:furnace_minecart',
-	'minecraft:glow_item_frame': 'minecraft:glow_item_frame',
-	'minecraft:hopper_minecart': 'minecraft:hopper_minecart',
-	'minecraft:interaction': 'minecraft:barrier',
-	'minecraft:item': 'minecraft:bundle',
-	'minecraft:item_display': 'minecraft:item_frame',
-	'minecraft:item_frame': 'minecraft:item_frame',
-	'minecraft:leash_knot': 'minecraft:lead',
-	'minecraft:lightning_bolt': 'minecraft:lightning_rod',
-	'minecraft:llama_spit': 'minecraft:llama_spawn_egg',
-	'minecraft:marker': 'minecraft:barrier',
-	'minecraft:minecart': 'minecraft:minecart',
-	'minecraft:ominous_item_spawner': 'minecraft:ominous_bottle',
-	'minecraft:painting': 'minecraft:painting',
-	'minecraft:player': 'minecraft:player_head',
-	'minecraft:shulker_bullet': 'minecraft:shulker_shell',
-	'minecraft:small_fireball': 'minecraft:fire_charge',
-	'minecraft:snowball': 'minecraft:snowball',
-	'minecraft:spectral_arrow': 'minecraft:spectral_arrow',
-	'minecraft:spawner_minecart': 'minecraft:spawner',
-	'minecraft:text_display': 'minecraft:oak_sign',
-	'minecraft:tnt': 'minecraft:tnt',
-	'minecraft:tnt_minecart': 'minecraft:tnt_minecart',
-	'minecraft:trident': 'minecraft:trident',
-	'minecraft:wind_charge': 'minecraft:wind_charge',
-	'minecraft:wither_skull': 'minecraft:wither_skeleton_spawn_egg'
-};
-
 export function shortId(id: string): string {
 	return id.replace(/^minecraft:/, '');
 }
@@ -172,7 +126,17 @@ export function vanillaLabel(group: VanillaGroup, id: string): string {
 	if (group === 'custom') {
 		return tDynamic('player.custom', shortId(id), humanizeId(id));
 	}
-	return humanizeId(id);
+	const kind: NameKind = group === 'mined' ? 'block' : group === 'killed' || group === 'killed_by' ? 'entity' : 'item';
+	return officialName(kind, id) ?? humanizeId(id);
+}
+
+/** Sorts stat IDs by their name in the current language, looking each name up once instead of on every comparison. */
+export function sortVanillaIds(group: VanillaGroup, ids: string[]): string[] {
+	const compare = nameComparer();
+	return ids
+		.map((id) => ({ id, label: vanillaLabel(group, id) }))
+		.sort((a, b) => compare(a.label, b.label) || a.id.localeCompare(b.id))
+		.map((entry) => entry.id);
 }
 
 export const vanillaGroupIcons: Record<VanillaGroup, string> = {
@@ -221,7 +185,8 @@ export function vanillaIcon(group: VanillaGroup, id: string): string {
 		return customIcons[id] ?? id;
 	}
 	if (group === 'killed' || group === 'killed_by') {
-		return entityIcons[id] ?? id;
+		// Mob face icons live under their own key, since e.g. minecraft:chicken is also the raw chicken item.
+		return `${ENTITY_ICON_PREFIX}${id}`;
 	}
 	return id;
 }
@@ -243,10 +208,9 @@ export function visibleVanilla(
 		const label = vanillaLabel(group, row.id).toLowerCase();
 		return label.includes(needle) || row.id.toLowerCase().includes(needle);
 	});
-	return filtered.slice().sort((a, b) => {
-		if (a.value !== b.value) {
-			return b.value - a.value;
-		}
-		return a.id.localeCompare(b.id);
-	});
+	const compare = nameComparer();
+	return filtered
+		.map((row) => ({ row, label: vanillaLabel(group, row.id) }))
+		.sort((a, b) => b.row.value - a.row.value || compare(a.label, b.label) || a.row.id.localeCompare(b.row.id))
+		.map((entry) => entry.row);
 }

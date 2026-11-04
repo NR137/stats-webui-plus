@@ -1,0 +1,108 @@
+plugins {
+	id 'multiloader-loader'
+	id 'net.fabricmc.fabric-loom'
+}
+
+base {
+	archivesName = "${archives_base_name}-fabric"
+}
+
+dependencies {
+	// To change the versions see the gradle.properties file
+	minecraft "com.mojang:minecraft:${minecraft_version}"
+	implementation "net.fabricmc:fabric-loader:${fabric_loader_version}"
+	implementation "net.fabricmc.fabric-api:fabric-api:${fabric_api_version}"
+}
+
+loom {
+	runs {
+		client {
+			client()
+			setConfigName('Fabric Client')
+			ideConfigGenerated(true)
+			runDir('runs/client')
+		}
+		server {
+			server()
+			setConfigName('Fabric Server')
+			ideConfigGenerated(true)
+			runDir('runs/server')
+		}
+		// Singleplayer test (scripts/smoke_test/client_test.py): opens the world "smoke" directly.
+		smokeClient {
+			client()
+			setConfigName('Fabric Smoke Client')
+			ideConfigGenerated(false)
+			runDir('build/run/smokeClient')
+			programArgs('--quickPlaySingleplayer', 'smoke')
+			// With the test mod, for the world switch (common/src/gametest/.../WorldSwitcher.java).
+			source('gametest')
+		}
+	}
+}
+
+// Game tests with a mock player on a real server: ./gradlew :fabric:runGameTest. The tests themselves are shared with
+// NeoForge (common/src/gametest); src/gametest only registers them. Not part of the mod JAR.
+fabricApi {
+	configureTests {
+		createSourceSet = true
+		modId = "${mod_id}_gametest"
+		enableGameTests = true
+		enableClientGameTests = false
+		eula = true
+	}
+}
+
+sourceSets {
+	gametest {
+		java.srcDir(rootProject.file('common/src/gametest/java'))
+		java.srcDir(rootProject.file('common/src/loadtest/java'))
+	}
+}
+
+// Online test players for the load test (scripts/load_test): a small mod of its own, built next to the mod JAR as
+// build/libs/stats-webui-plus-loadtest-{loader}.jar and never part of it. The code is shared (common/src/loadtest);
+// the game tests use its TestPlayers too.
+sourceSets {
+	loadtest {
+		java.srcDir(rootProject.file('common/src/loadtest/java'))
+		compileClasspath += sourceSets.main.output
+	}
+}
+configurations.loadtestCompileClasspath.extendsFrom(configurations.compileClasspath)
+
+def loadtestJar = tasks.register('loadtestJar', Jar) {
+	from sourceSets.loadtest.output
+	archiveFileName = 'stats-webui-plus-loadtest-fabric.jar'
+	destinationDirectory = layout.buildDirectory.dir('libs')
+}
+tasks.named('assemble') { dependsOn loadtestJar }
+
+// The mod's web server gets a port of its own during game tests, so the Fabric and NeoForge runs (which Gradle starts
+// at the same time) and a running dev server don't take each other's port. Written after the run folder is set up.
+tasks.named('runGameTest') {
+	doFirst {
+		def config = file("build/run/gameTest/config/${mod_id}.json")
+		config.parentFile.mkdirs()
+		config.text = '{"port": 25581, "bind": "127.0.0.1"}\n'
+	}
+}
+
+// Implement mcgradleconventions loader attribute
+def loaderAttribute = Attribute.of('io.github.mcgradleconventions.loader', String)
+['apiElements', 'runtimeElements', 'includeInternal', 'modCompileClasspath'].each { variant ->
+	configurations.named(variant) {
+		attributes {
+			attribute(loaderAttribute, 'fabric')
+		}
+	}
+}
+sourceSets.configureEach {
+	[it.compileClasspathConfigurationName, it.runtimeClasspathConfigurationName].each { variant ->
+		configurations.named(variant) {
+			attributes {
+				attribute(loaderAttribute, 'fabric')
+			}
+		}
+	}
+}

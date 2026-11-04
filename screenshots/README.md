@@ -1,27 +1,62 @@
-# Home
+# Screenshots
 
-![Home ranking](screenshot.png)
+Sample players on a Fabric dev server, taken with the scripts in [`scripts/`](../scripts/README.md). All pages show the default banner and two extra menu buttons from the config (`links`).
 
-# Light theme
+## Ranking
 
-![Home ranking light](light.png)
+![Ranking](ranking.png)
 
-# All stats
+## Advancements
 
-![Leaderboards catalog](all_stats.png)
+![Advancements](advancements.png)
 
-# Leaderboard of a specific stat
+## One advancement
 
-![Leaderboard](stat.png)
+![Who got an advancement, and when](advancement.png)
 
-# Compare players
+## Players
+
+![Players](players.png)
+
+## Player page
+
+![Player page, stats tab](player.png)
+
+![Player page, advancements tab](player-advancements.png)
+
+## Leaderboards
+
+![All leaderboards](leaderboards.png)
+
+## One leaderboard
+
+![Leaderboard of one stat](leaderboard.png)
+
+## Compare players
 
 ![Compare players](compare.png)
 
-# Player profile
+## How we rank
 
-![Player profile](profile.png)
+![How we rank](how-we-rank.png)
 
-# How we rank
+## Light theme
 
-![How we rank](docs.png)
+![Ranking in the light theme](ranking-light.png)
+
+## Languages
+
+German, Spanish and French, each on a player page.
+
+![Player page in German](player-de.png)
+
+![Player page in Spanish](player-es.png)
+
+![Player page in French](player-fr.png)
+
+## Mobile layout
+
+<p>
+  <img src="mobile-ranking.png" alt="Ranking on a phone" width="300">
+  <img src="mobile-player.png" alt="Player page on a phone" width="300">
+</p>

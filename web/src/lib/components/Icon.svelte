@@ -73,6 +73,12 @@
 		<rect width="6" height="12" fill="#0055a4" />
 		<rect x="12" width="6" height="12" fill="#ef4135" />
 	</svg>
+{:else if name === 'de'}
+	<svg viewBox="0 0 18 12" aria-hidden="true">
+		<rect width="18" height="4" fill="#000" />
+		<rect y="4" width="18" height="4" fill="#dd0000" />
+		<rect y="8" width="18" height="4" fill="#ffce00" />
+	</svg>
 {:else if name === 'poseIdle'}
 	<svg viewBox="0 0 24 24" aria-hidden="true">
 		<circle cx="12" cy="5" r="2.1" fill="none" stroke="currentColor" stroke-width="1.8" />

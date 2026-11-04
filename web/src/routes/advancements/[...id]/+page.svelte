@@ -1,7 +1,8 @@
 <script lang="ts">
+	import { pageTitleTag } from '$lib/branding.svelte';
 	import { page } from '$app/state';
 	import { advancementDescription, advancementTitle } from '$lib/advancements';
-	import { getAdvancement, getAdvancementMost } from '$lib/api';
+	import { NotFoundError, getAdvancement, getAdvancementMost } from '$lib/api';
 	import BackNav from '$lib/components/BackNav.svelte';
 	import HomePodium from '$lib/components/HomePodium.svelte';
 	import Loader from '$lib/components/Loader.svelte';
@@ -15,6 +16,7 @@
 	let board = $state<LeaderboardResponse | null>(null);
 	let detail = $state<AdvancementDetailResponse | null>(null);
 	let failed = $state(false);
+	let notFound = $state(false);
 	let loading = $state(true);
 	let query = $state('');
 
@@ -62,6 +64,7 @@
 		board = null;
 		detail = null;
 		failed = false;
+		notFound = false;
 		loading = true;
 		query = '';
 		const request = most ? getAdvancementMost() : getAdvancement(id);
@@ -73,8 +76,9 @@
 					detail = data as AdvancementDetailResponse;
 				}
 			})
-			.catch(() => {
+			.catch((error) => {
 				failed = true;
+				notFound = error instanceof NotFoundError;
 			})
 			.finally(() => {
 				loading = false;
@@ -87,14 +91,14 @@
 </svelte:head>
 
 <BackNav />
-<h1>
+<svelte:element this={pageTitleTag()} class="page-title">
 	{#if most}
 		<McItem id="minecraft:experience_bottle" />
 	{:else if detail}
 		<McItem id={detail.icon} />
 	{/if}
 	{heading}
-</h1>
+</svelte:element>
 <p class="lead">
 	{#if most}
 		{t('advancements.mostLead')}
@@ -107,7 +111,7 @@
 </p>
 
 {#if failed}
-	<p class="empty">{t('advancements.loadError')}</p>
+	<p class="empty">{t(notFound ? 'advancements.notFound' : 'advancements.loadError')}</p>
 {:else if loading}
 	<Loader />
 {:else}
@@ -140,7 +144,9 @@
 {/if}
 
 <style>
-	h1 {
+	.page-title {
+		/* Same look whether this is the page's h1 or an h2 below the site heading. */
+		font-size: 2rem;
 		display: flex;
 		align-items: center;
 		justify-content: center;

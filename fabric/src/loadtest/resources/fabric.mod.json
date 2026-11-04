@@ -1,0 +1,17 @@
+{
+	"schemaVersion": 1,
+	"id": "stats_webui_plus_loadtest",
+	"version": "1.0.0",
+	"name": "Stats WebUI Plus load test players",
+	"description": "Only for scripts/load_test: logs in online test players. Never put this on a real server.",
+	"environment": "server",
+	"entrypoints": {
+		"main": [
+			"webui.stats.mc.fabric.loadtest.FabricLoadTest"
+		]
+	},
+	"depends": {
+		"stats_webui_plus": "*",
+		"fabric-api": "*"
+	}
+}

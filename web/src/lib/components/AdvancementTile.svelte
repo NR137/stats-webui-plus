@@ -11,7 +11,8 @@
 	let {
 		item,
 		dim = false,
-		showHolders = false
+		showHolders = false,
+		when
 	}: {
 		item: {
 			id: string;
@@ -22,6 +23,8 @@
 		};
 		dim?: boolean;
 		showHolders?: boolean;
+		// When the player completed it, already formatted.
+		when?: string;
 	} = $props();
 </script>
 
@@ -33,7 +36,12 @@
 			</span>
 			<span class="label">{advancementTitle(item.id, item.title)}</span>
 			{#if showHolders}
-				<span class="holders">{t('advancements.holders', { count: item.holders ?? 0 })}</span>
+				<span class="holders" class:none={!item.holders}
+					>{t('advancements.holders', { count: item.holders ?? 0 })}</span
+				>
+			{/if}
+			{#if when}
+				<span class="when">{when}</span>
 			{/if}
 		</a>
 	</Tooltip>
@@ -76,13 +84,26 @@
 	}
 
 	.label,
-	.holders {
+	.holders,
+	.when {
 		color: var(--color-muted);
 		font-size: 0.72rem;
 		line-height: 1.25;
 	}
 
-	.holders {
+	.holders,
+	.when {
 		color: var(--color-accent);
+	}
+
+	/* Nobody has it yet: fainter than the label, the accent colour is for advancements someone finished. */
+	.holders.none {
+		color: var(--color-muted);
+		opacity: 0.55;
+	}
+
+	.when {
+		font-size: 0.66rem;
+		font-variant-numeric: tabular-nums;
 	}
 </style>

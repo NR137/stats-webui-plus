@@ -133,6 +133,12 @@
 		background: linear-gradient(to top, var(--color-plate), transparent);
 	}
 
+	/* The figure reaches 7.1rem down behind the card but the card is shorter, so an empty place's visible
+	   background would hang out below it. Places with a player stay unclipped so their skin can overflow. */
+	.place.empty {
+		overflow: hidden;
+	}
+
 	.card {
 		position: relative;
 		z-index: 1;

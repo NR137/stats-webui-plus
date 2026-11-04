@@ -15,6 +15,9 @@ html[data-theme='dark'] {
 	--color-text: #e0e0e0;
 	--color-accent: #55ff55;
 	--color-gold: #ffff55;
+	/* Minecraft's splash text yellow and its shadow (a quarter of the brightness). */
+	--color-splash: #ffff00;
+	--color-splash-shadow: #3f3f00;
 	--color-hover: #ffffa0;
 	--color-border: #000000;
 	--color-card: #00000099;
@@ -48,6 +51,9 @@ html[data-theme='light'] {
 	--color-text: #3f2a14;
 	--color-accent: #2d6a1e;
 	--color-gold: #aa7f00;
+	/* Pure yellow is unreadable on the light background; a dark gold stands out from it. */
+	--color-splash: #6e4a00;
+	--color-splash-shadow: var(--color-shadow);
 	--color-hover: #5a3c00;
 	--color-border: #3f2a14;
 	--color-card: #f0e2b8d9;
@@ -76,6 +82,11 @@ html[data-theme='light'] {
 
 * {
 	box-sizing: border-box;
+}
+
+/* Always keep room for the scrollbar, so content doesn't shift sideways between short and long pages. */
+html {
+	scrollbar-gutter: stable;
 }
 
 html,
@@ -118,6 +129,22 @@ h2,
 h3 {
 	font-weight: 400;
 	text-shadow: var(--text-shadow);
+}
+
+/* Long single words (German compounds like "Blasenkorallenwandfächer" or "Nahkampfschaden") break with a
+   hyphen where they don't fit: in headings, buttons, tiles and tables. Hyphenation follows <html lang>, which
+   tracks the UI language; overflow-wrap catches words the browser has no hyphenation rules for. Only words of
+   12+ letters, with 5+ on each side of the break: shorter words move to the next line whole ("Tie-re" looks odd). */
+h1,
+h2,
+h3,
+.mc-btn,
+.slot,
+th,
+td {
+	hyphens: auto;
+	hyphenate-limit-chars: 12 5 5;
+	overflow-wrap: break-word;
 }
 
 button,

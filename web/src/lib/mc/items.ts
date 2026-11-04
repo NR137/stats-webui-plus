@@ -2,8 +2,11 @@ import iconMap from './icons.json';
 
 const icons = iconMap as Record<string, string>;
 
+// icons.json keeps mob face icons under "entity:minecraft:<id>", next to item icons that may share the ID.
+export const ENTITY_ICON_PREFIX = 'entity:';
+
 export function shortItemId(id: string): string {
-	return id.replace(/^minecraft:/, '');
+	return id.replace(/^entity:/, '').replace(/^minecraft:/, '');
 }
 
 export function itemLetter(id: string): string {
@@ -12,6 +15,12 @@ export function itemLetter(id: string): string {
 }
 
 export function itemTextureUrls(id: string): string[] {
+	if (id.startsWith(ENTITY_ICON_PREFIX)) {
+		// The mob's own icon if there is one; non-mob entities (arrows, boats, ...) use their item icon.
+		const plain = itemTextureUrls(id.slice(ENTITY_ICON_PREFIX.length));
+		const entityIcon = icons[id];
+		return entityIcon ? [entityIcon, ...plain.filter((url) => url !== entityIcon)] : plain;
+	}
 	const name = shortItemId(id);
 	const urls: string[] = [];
 	const mapped = icons[id];

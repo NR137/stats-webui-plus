@@ -1,0 +1,69 @@
+#!/bin/sh
+# Runs the tests the staged changes touch before each commit, like the tests workflow does on GitHub.
+# Turn on once per clone: git config core.hooksPath .githooks (the dev container does this for you)
+# Skip once: git commit --no-verify
+# Note: the tests see the working tree, not only what is staged.
+
+root=$(git rev-parse --show-toplevel) || exit 1
+cd "$root" || exit 1
+
+staged=$(git diff --cached --name-only --diff-filter=ACMRD)
+[ -z "$staged" ] && exit 0
+
+java=false
+web=false
+scripts=false
+for file in $staged; do
+	case "$file" in
+		common/* | fabric/* | neoforge/* | build-logic/* | *.gradle | gradle.properties | gradle/* | .tool-versions) java=true ;;
+		web/*) web=true ;;
+		scripts/*.py | scripts/*/*.py) scripts=true ;;
+	esac
+done
+
+# In the dev container directly, otherwise through Docker (./tasks.sh has the commands). With
+# `git config statswebui.hookTools local` this clone uses locally installed tools instead (see .tool-versions);
+# `git config --unset statswebui.hookTools` goes back to Docker.
+tools=$(git config --get statswebui.hookTools || echo docker)
+run() {
+	if [ -n "$STATS_WEBUI_DEV_CONTAINER" ] || [ "$tools" = local ]; then
+		./tasks.sh "$@"
+	elif docker info >/dev/null 2>&1; then
+		docker compose run --rm -T dev ./tasks.sh "$@"
+	else
+		cat >&2 <<'EOF'
+pre-commit: Docker is not running, so the tests can't run in the dev image. Either
+  - start Docker and commit again,
+  - skip the tests once:                     git commit --no-verify
+  - use locally installed tools from now on: git config statswebui.hookTools local
+    (Java, Node and Python as in .tool-versions; undo with git config --unset statswebui.hookTools)
+EOF
+		return 1
+	fi
+}
+
+if $java; then
+	echo "pre-commit: java tests"
+	run test-java >/dev/null || {
+		echo "pre-commit: java tests failed, see common/build/reports/tests/test/index.html (skip with --no-verify)"
+		exit 1
+	}
+fi
+
+if $scripts; then
+	echo "pre-commit: script tests"
+	out=$(run test-scripts 2>&1) || {
+		echo "$out" | tail -40
+		echo "pre-commit: script tests failed (skip with --no-verify)"
+		exit 1
+	}
+fi
+
+if $web; then
+	echo "pre-commit: web type check and tests"
+	out=$(run test-web 2>&1) || {
+		echo "$out" | tail -40
+		echo "pre-commit: web checks failed (skip with --no-verify)"
+		exit 1
+	}
+fi

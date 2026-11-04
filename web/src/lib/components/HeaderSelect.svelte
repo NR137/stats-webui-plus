@@ -14,13 +14,16 @@
 		label,
 		value,
 		options,
-		onselect
+		onselect,
+		showLabel = false
 	}: {
 		id: string;
 		label: string;
 		value: string;
 		options: HeaderSelectOption[];
 		onselect: (id: string) => void;
+		// Show "<label>: <choice>" on the button, for choices that don't explain themselves ("System").
+		showLabel?: boolean;
 	} = $props();
 
 	const open = $derived(headerMenu.open === id);
@@ -42,7 +45,7 @@
 		onclick={() => toggleMenu(id)}
 	>
 		<Icon name={current.icon} />
-		<span>{current.label}</span>
+		<span>{showLabel ? `${label}: ${current.label}` : current.label}</span>
 		<span class="chevron" class:up={open}><Icon name="chevron" /></span>
 	</button>
 	{#if open}

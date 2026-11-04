@@ -1,0 +1,50 @@
+// Applied to common, fabric and neoforge.
+plugins {
+	id 'java-library'
+}
+
+version = "${mod_version}+${minecraft_version}"
+
+java {
+	toolchain.languageVersion = JavaLanguageVersion.of(java_version)
+}
+
+tasks.withType(JavaCompile).configureEach {
+	options.encoding = 'UTF-8'
+	options.release = java_version as int
+}
+
+tasks.withType(Jar).configureEach {
+	// Reproducible JARs: no file timestamps and a fixed order, so the same sources give byte-identical JARs.
+	preserveFileTimestamps = false
+	reproducibleFileOrder = true
+	from(rootProject.file('LICENSE')) {
+		rename { "${it}_${mod_id}" }
+	}
+}
+
+processResources {
+	var expandProps = [
+		'version'                : version,
+		'minecraft_version'      : minecraft_version,
+		'minecraft_version_range': minecraft_version_range,
+		'mod_id'                 : mod_id,
+		'mod_name'               : mod_name,
+		'license'                : license,
+		'mod_homepage'           : mod_homepage,
+		'original_homepage'      : original_homepage,
+		'java_version'           : java_version,
+		'fabric_loader_version'  : fabric_loader_version,
+		'neoforge_version'       : neoforge_version,
+	]
+
+	filesMatching('META-INF/neoforge.mods.toml') {
+		expand expandProps
+	}
+
+	filesMatching('fabric.mod.json') {
+		expand expandProps
+	}
+
+	inputs.properties(expandProps)
+}

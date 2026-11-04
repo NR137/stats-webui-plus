@@ -11,13 +11,26 @@ import type {
 	PlayerStat,
 	PlayerSummary,
 	PlayersResponse,
-	StatusResponse
+	StatusResponse,
+	VanillaStat
 } from './types';
 import { parseVanillaBoardId } from './vanillaStats';
+
+/** The API answered 404: that player, leaderboard or advancement doesn't exist (as opposed to a server problem). */
+export class NotFoundError extends Error {
+	constructor() {
+		super('not_found');
+		this.name = 'NotFoundError';
+	}
+}
 
 async function getJson<T>(path: string): Promise<T> {
 	const response = await fetch(path);
 	const contentType = response.headers.get('content-type') ?? '';
+	// Only the mod's own JSON 404 counts; an HTML 404 comes from something in between (proxy, wrong address).
+	if (response.status === 404 && contentType.includes('application/json')) {
+		throw new NotFoundError();
+	}
 	if (!contentType.includes('application/json') || !response.ok) {
 		throw new Error('unavailable');
 	}
@@ -91,8 +104,57 @@ function sortRoster(players: PlayerSummary[]) {
 	);
 }
 
-export function getPlayer(name: string) {
-	return getJson<PlayerSummary & Partial<PlayerDetail>>(`/api/players/${encodeURIComponent(name)}`);
+type PlayerResponse = PlayerSummary &
+	Partial<PlayerDetail> & {
+		// Vanilla counts the player never raised, as group -> rank -> namespace -> paths instead of one full row each.
+		vanillaZero?: Record<string, Record<string, IdsByNamespace>>;
+	};
+
+export async function getPlayer(name: string): Promise<PlayerSummary & Partial<PlayerDetail>> {
+	const { vanillaZero, ...player } = await getJson<PlayerResponse>(
+		`/api/players/${encodeURIComponent(name)}`
+	);
+	if (player.vanilla && vanillaZero) {
+		player.vanilla = withZeroRows(player.vanilla, vanillaZero);
+	}
+	return player;
+}
+
+// IDs as the server sends long lists of them: namespace -> paths ("minecraft" -> ["stone", ...]).
+type IdsByNamespace = Record<string, string[]>;
+
+function joinIds(grouped: IdsByNamespace): string[] {
+	const ids: string[] = [];
+	for (const [namespace, paths] of Object.entries(grouped)) {
+		for (const path of paths) {
+			ids.push(namespace ? `${namespace}:${path}` : path);
+		}
+	}
+	return ids;
+}
+
+// The server's order: IDs compared by UTF-16 code units, like Java's String.compareTo.
+function compareIds(a: string, b: string): number {
+	return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/** Puts the zero rows back, so every page gets the same rows as if the server had sent them all. */
+function withZeroRows(
+	vanilla: Record<string, VanillaStat[]>,
+	zeros: Record<string, Record<string, IdsByNamespace>>
+): Record<string, VanillaStat[]> {
+	const result: Record<string, VanillaStat[]> = {};
+	for (const [group, rows] of Object.entries(vanilla)) {
+		const all = rows.slice();
+		for (const [rank, namespaces] of Object.entries(zeros[group] ?? {})) {
+			for (const id of joinIds(namespaces)) {
+				all.push({ id, value: 0, display: '0', unit: 'count', rank: Number(rank) });
+			}
+		}
+		all.sort((a, b) => compareIds(a.id, b.id));
+		result[group] = all;
+	}
+	return result;
 }
 
 export async function getPlayerProfile(name: string): Promise<PlayerDetail> {
@@ -156,6 +218,11 @@ export async function getPlayerProfile(name: string): Promise<PlayerDetail> {
 		scorePerHour,
 		scorePerHourDisplay,
 		trackedPlayers,
+		firstJoin: player.firstJoin ?? null,
+		firstJoinEstimated: player.firstJoinEstimated ?? false,
+		lastLogout: player.lastLogout ?? null,
+		lastLogoutEstimated: player.lastLogoutEstimated ?? false,
+		online: player.online ?? false,
 		grades: {},
 		stats,
 		vanilla: undefined,
@@ -163,12 +230,20 @@ export async function getPlayerProfile(name: string): Promise<PlayerDetail> {
 	};
 }
 
-export async function getLeaderboards() {
-	const data = await getJson<LeaderboardsResponse & { leaderboards?: Array<{ id: string; category: string }> }>(
-		'/api/leaderboards'
-	);
+export async function getLeaderboards(): Promise<LeaderboardsResponse> {
+	const { vanilla: grouped, ...data } = await getJson<
+		Omit<LeaderboardsResponse, 'vanilla'> & {
+			vanilla?: Partial<Record<string, IdsByNamespace>>;
+			leaderboards?: Array<{ id: string; category: string }>;
+		}
+	>('/api/leaderboards');
+	const vanilla = grouped
+		? Object.fromEntries(
+				Object.entries(grouped).map(([group, ids]) => [group, joinIds(ids ?? {}).sort(compareIds)])
+			)
+		: undefined;
 	if (data.categories && data.boards) {
-		return data;
+		return { ...data, vanilla };
 	}
 	const legacy = data.leaderboards ?? [];
 	const boards: LeaderboardBoard[] = legacy.map((board) => ({
@@ -193,7 +268,7 @@ export async function getLeaderboards() {
 			boards: boards.filter((item) => item.listed && item.category === board.category)
 		});
 	}
-	return { categories, boards, vanilla: data.vanilla };
+	return { categories, boards, vanilla };
 }
 
 export function getLeaderboard(id: string) {
@@ -203,7 +278,8 @@ export function getLeaderboard(id: string) {
 		.join('/');
 	return getJson<LeaderboardResponse>(`/api/leaderboards/${path}`).catch(async (error) => {
 		const vanilla = parseVanillaBoardId(id);
-		if (!vanilla) {
+		// The server knows every vanilla stat, so a 404 means there is no such stat: no need to ask every player.
+		if (!vanilla || error instanceof NotFoundError) {
 			throw error;
 		}
 		return leaderboardFromProfiles(vanilla.group, vanilla.id);

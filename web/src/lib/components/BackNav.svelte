@@ -7,7 +7,9 @@
 	let fromPath = $state<string | null>(null);
 
 	afterNavigate(({ from }) => {
-		fromPath = from ? `${from.url.pathname}${from.url.search}` : null;
+		// After a direct page load `from` exists but has no URL; reading it threw, which broke the client-side
+		// router, so the next link click (e.g. a player tab) reloaded the whole page.
+		fromPath = from?.url ? `${from.url.pathname}${from.url.search}` : null;
 	});
 
 	const fallbackPath = $derived(

@@ -1,0 +1,19 @@
+{
+	"schemaVersion": 1,
+	"id": "stats_webui_plus_gametest",
+	"version": "1.0.0",
+	"name": "Stats WebUI Plus game tests",
+	"environment": "*",
+	"entrypoints": {
+		"fabric-gametest": [
+			"webui.stats.mc.fabric.gametest.FabricGameTests"
+		],
+		"client": [
+			"webui.stats.mc.fabric.gametest.FabricSmokeClient"
+		]
+	},
+	"depends": {
+		"stats_webui_plus": "*",
+		"fabric-gametest-api-v1": "*"
+	}
+}

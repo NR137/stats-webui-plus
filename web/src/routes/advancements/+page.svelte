@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { advancementTabTitle, matchesAdvancementQuery } from '$lib/advancements';
+	import { pageTitleTag } from '$lib/branding.svelte';
+	import { advancementTabTitle, compareAdvancementTitles, matchesAdvancementQuery } from '$lib/advancements';
 	import { boardHint, i18n, pageTitle, t } from '$lib/i18n/i18n.svelte';
 	import { getAdvancementMost, getAdvancements } from '$lib/api';
 	import AdvancementTiles from '$lib/components/AdvancementTiles.svelte';
@@ -57,11 +58,18 @@
 		const needle = filterQuery.current;
 		return tabs
 			.map((tab) => {
-				const matched = catalog.filter(
-					(item) =>
-						item.tab === tab.id &&
-						matchesAdvancementQuery(item.id, item.title, item.description, needle)
-				);
+				const items = catalog
+					.filter(
+						(item) =>
+							item.tab === tab.id &&
+							matchesAdvancementQuery(item.id, item.title, item.description, needle)
+					)
+					.sort(compareAdvancementTitles);
+				// Ones at least one player finished first, then the rest; both in title order.
+				const matched = [
+					...items.filter((item) => (item.holders ?? 0) > 0),
+					...items.filter((item) => !item.holders)
+				];
 				return { tab, matched, ids: cappedResults(matched, searching) };
 			})
 			.filter((section) => section.matched.length > 0);
@@ -72,7 +80,7 @@
 	<title>{pageTitle(t('nav.advancements'))}</title>
 </svelte:head>
 
-<h1>{t('advancements.heading')}</h1>
+<svelte:element this={pageTitleTag()} class="page-title">{t('advancements.heading')}</svelte:element>
 <p class="lead">{t('advancements.lead')}</p>
 
 {#if failed}
@@ -127,7 +135,9 @@
 {/if}
 
 <style>
-	h1 {
+	.page-title {
+		/* Same look whether this is the page's h1 or an h2 below the site heading. */
+		font-size: 2rem;
 		margin: 0 0 0.4rem;
 		text-align: center;
 	}

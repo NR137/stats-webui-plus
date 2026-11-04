@@ -1,5 +1,5 @@
 import advancementLang from '$lib/mc/advancementLang.json';
-import { i18n, type Locale } from '$lib/i18n/i18n.svelte';
+import { i18n, nameComparer, type Locale } from '$lib/i18n/i18n.svelte';
 
 const dictionaries = advancementLang as Record<string, Record<string, string>>;
 
@@ -29,6 +29,17 @@ export function advancementTitle(id: string, fallback = id) {
 
 export function advancementDescription(id: string, fallback = '') {
 	return lookup(langKey(id, 'description'), i18n.locale) || fallback;
+}
+
+/**
+ * Compares two advancements by their title in the current language, the way stat names are sorted. Lists of
+ * advancements are short (a tab holds a few dozen), so looking the titles up per comparison is fine here.
+ */
+export function compareAdvancementTitles(
+	a: { id: string; title: string },
+	b: { id: string; title: string }
+): number {
+	return nameComparer()(advancementTitle(a.id, a.title), advancementTitle(b.id, b.title)) || a.id.localeCompare(b.id);
 }
 
 export function advancementTabTitle(tab: string, fallback = tab) {
