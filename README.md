@@ -157,7 +157,7 @@ A pre-commit hook runs the Java or web tests a commit touches, in the dev contai
 
 The `release` workflow (`.github/workflows/release.yml`) only runs when started by hand: **Actions → release → Run workflow**, or `gh workflow run release.yml`. Nothing starts it automatically. It runs the tests first; if one fails, nothing is built or released.
 
-1. Set `mod_version` in `gradle.properties` and give its `CHANGELOG.md` section a date (`## [1.3.0] - 2026-10-30`).
+1. Set `mod_version` in `gradle.properties` and give its `CHANGELOG.md` section a date (`## [x.y.z] - YYYY-MM-DD`).
 2. Run the workflow without "draft release" to only build: the two JARs and the release notes are attached to the run for a day.
 3. Run it with "draft release" to create a draft GitHub release `v<mod_version>+<minecraft_version>` with both JARs and that version's `CHANGELOG.md` section as notes. Drafts are invisible to others and create no tag; check it, then publish it on GitHub.
 
