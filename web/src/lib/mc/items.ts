@@ -60,6 +60,11 @@ export function itemTextureUrls(id: string): string[] {
 	return urls;
 }
 
+// Whether icons.json has an entry under exactly this key (e.g. an advancement's own icon).
+export function hasIcon(key: string): boolean {
+	return key in icons;
+}
+
 export function itemTexture(id: string): string | undefined {
 	return itemTextureUrls(id)[0];
 }

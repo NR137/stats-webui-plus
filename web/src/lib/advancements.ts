@@ -1,5 +1,6 @@
 import advancementLang from '$lib/mc/advancementLang.json';
 import { i18n, nameComparer, type Locale } from '$lib/i18n/i18n.svelte';
+import { hasIcon } from '$lib/mc/items';
 
 const dictionaries = advancementLang as Record<string, Record<string, string>>;
 
@@ -44,6 +45,13 @@ export function compareAdvancementTitles(
 
 export function advancementTabTitle(tab: string, fallback = tab) {
 	return lookup(`advancements.${tab}.root.title`, i18n.locale) || fallback;
+}
+
+// Some advancements show a special item with a name of its own (the Ominous Banner, a white banner with a pattern);
+// the texture script stores those icons under "advancement:<id>".
+export function advancementIcon(id: string, icon: string): string {
+	const own = `advancement:${id}`;
+	return hasIcon(own) ? own : icon;
 }
 
 export function advancementHref(id: string) {

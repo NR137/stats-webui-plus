@@ -123,7 +123,12 @@
 					</button>
 				</div>
 				{#if isOpen(section.tab.id)}
-					<AdvancementTiles items={section.ids} dim={(item) => Boolean(item.hidden)} showHolders />
+					<AdvancementTiles
+						items={section.ids}
+						dim={(item) => Boolean(item.hidden)}
+						obtained={(item) => (item.holders ?? 0) > 0}
+						showHolders
+					/>
 				{/if}
 			</section>
 		{/each}
@@ -220,7 +225,7 @@
 
 	.count {
 		margin-left: 0.45rem;
-		font-size: 0.78rem;
+		font-size: 0.75rem;
 		color: var(--color-muted);
 	}
 </style>

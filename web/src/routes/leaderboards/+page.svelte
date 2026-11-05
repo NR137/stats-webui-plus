@@ -306,13 +306,13 @@
 
 	.count {
 		margin-left: 0.45rem;
-		font-size: 0.78rem;
+		font-size: 0.75rem;
 		color: var(--color-muted);
 	}
 
 	.tiles {
 		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(8.4rem, 1fr));
+		grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
 		gap: 0.45rem;
 	}
 
@@ -336,7 +336,7 @@
 
 	.label {
 		color: var(--color-muted);
-		font-size: 0.72rem;
+		font-size: 0.875rem;
 		line-height: 1.25;
 	}
 

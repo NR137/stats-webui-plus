@@ -7,6 +7,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+#### Advancements
+
+- **Advancements look like in the game:** each icon sits on the game's frame for its type (task square, goal rounded,
+  challenge spiky), gold when obtained and silver when not. On a player's page that is their own progress; on the
+  advancements overview and an advancement's page it is gold once any player has it. Not-obtained advancements on a
+  player's page keep their icon at full strength; only their texts are faded.
+- **Bigger text in tiles:** advancement titles and stat names are 14px instead of about 11.5px, dates, ranks and
+  counts 12px, and stat values 18px; the tiles are a little wider for it. This applies to advancements, a player's
+  stats and the leaderboards overview.
+- **Titles are coloured like the game's chat announces them:** challenges purple, tasks and goals green. The date and
+  the number of players under them are no longer green.
+
 #### Menu
 
 - **The menu takes far less space.** On phones it is one button naming the current page (e.g. "☰ Ranking") that
@@ -33,6 +45,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Fixed
 
 #### Web UI
+
+- Voluntary Exile and Hero of the Village show the Ominous Banner, as in the game, instead of a white banner. The
+  texture script takes such specially named icons from minecraft.wiki.
 
 - The header no longer changes its height a little when switching the language: the room under the site heading for
   the tilted tagline is kept for the longest tagline of all languages.

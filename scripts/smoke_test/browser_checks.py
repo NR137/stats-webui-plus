@@ -21,6 +21,7 @@ def run(base: str, names: list[str], check) -> None:
 			_checks(browser, base, names, check)
 			_ui_checks(browser, base, names, check)
 			_menu_checks(browser, base, names, check)
+			_advancement_checks(browser, base, names, check)
 		finally:
 			browser.close()
 
@@ -279,4 +280,45 @@ def _menu_checks(browser, base: str, names: list[str], check) -> None:
 	check(not pages_link.is_visible(), 'a tap outside closes the phone menu')
 	check(toggle.get_attribute('aria-expanded') == 'false', 'the menu button tells screen readers it is closed')
 	check(not errors, f'no JavaScript errors in the phone menu ({"; ".join(errors[:3]) or "none"})')
+	page.context.close()
+
+
+def _advancement_checks(browser, base: str, names: list[str], check) -> None:
+	"""CHANGELOG 1.4.0: advancements on the game's frames (shape = type, gold = obtained), titles coloured like the
+	game's chat, and the Ominous Banner icon."""
+	page, errors = _page(browser)
+	page.goto(f'{base}/players/{quote(names[0], safe="")}/advancements')
+	page.locator('.advancement-icon').first.wait_for()
+	tiles = page.evaluate("""async () => {
+		const catalog = await (await fetch('/api/advancements')).json();
+		const frames = Object.fromEntries(catalog.advancements.map((item) => [item.id, item.frame]));
+		return [...document.querySelectorAll('.tile')].map((tile) => {
+			const id = decodeURIComponent(new URL(tile.href).pathname.replace('/advancements/', ''))
+				.replace('/', ':');
+			const image = getComputedStyle(tile.querySelector('.advancement-icon')).backgroundImage;
+			return { id, frame: frames[id], image, done: Boolean(tile.querySelector('.when')),
+				color: getComputedStyle(tile.querySelector('.label')).color };
+		});
+	}""")
+	wrong_shape = [tile['id'] for tile in tiles if f"/{tile['frame']}_frame_" not in tile['image']]
+	check(tiles and not wrong_shape, f'every advancement sits on the frame of its type ({len(tiles)} tiles, wrong: {wrong_shape[:3]})')
+	wrong_colour = [tile['id'] for tile in tiles if ('_frame_obtained' in tile['image']) != tile['done']]
+	check(any(tile['done'] for tile in tiles) and any(not tile['done'] for tile in tiles) and not wrong_colour,
+		f'the frame is gold exactly for the player\'s finished advancements (wrong: {wrong_colour[:3]})')
+	colours = {kind: {tile['color'] for tile in tiles if (tile['frame'] == 'challenge') == (kind == 'challenge')}
+		for kind in ('challenge', 'other')}
+	check(len(colours['challenge']) == 1 and len(colours['other']) == 1 and colours['challenge'] != colours['other'],
+		f'challenge titles have one colour, task and goal titles another ({colours})')
+	frame_files = page.evaluate("""async () => Promise.all(['task', 'goal', 'challenge'].flatMap((shape) =>
+		['obtained', 'unobtained'].map(async (state) => {
+			const response = await fetch(`/mc/advancement/${shape}_frame_${state}.png`);
+			return response.ok && response.headers.get('content-type').startsWith('image/');
+		})))""")
+	check(all(frame_files), 'all six frame images are served')
+
+	page.goto(f'{base}/advancements/minecraft/adventure/voluntary_exile')
+	page.locator('.advancement-icon img').first.wait_for(state='attached')
+	check('ominous_banner' in (page.locator('.advancement-icon img').first.get_attribute('src') or ''),
+		'Voluntary Exile shows the Ominous Banner')
+	check(not errors, f'no JavaScript errors on the advancement pages ({"; ".join(errors[:3]) or "none"})')
 	page.context.close()

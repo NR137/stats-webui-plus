@@ -743,6 +743,28 @@ def finish_downloads(allow_failures: bool) -> None:
 	)
 
 
+def named_advancement_icons(jar: zipfile.ZipFile, lang: dict[str, str]) -> dict[str, tuple[str, str]]:
+	"""Advancement icons that are a special item with a name of its own, e.g. the Ominous Banner (a white banner with
+	a pattern) of Voluntary Exile. Maps "advancement:<id>" to (file name, the wiki icon of that item); the web UI
+	prefers these over the plain item's icon."""
+	icons: dict[str, tuple[str, str]] = {}
+	for entry in sorted(jar.namelist()):
+		if not entry.startswith("data/minecraft/advancement/") or not entry.endswith(".json"):
+			continue
+		data = load_json(jar, entry)
+		display = data.get("display") if isinstance(data, dict) else None
+		icon = display.get("icon") if isinstance(display, dict) else None
+		components = icon.get("components") if isinstance(icon, dict) else None
+		item_name = components.get("minecraft:item_name") if isinstance(components, dict) else None
+		key = item_name.get("translate") if isinstance(item_name, dict) else None
+		title = lang.get(key) if isinstance(key, str) else None
+		if not title:
+			continue
+		advancement = "minecraft:" + entry.removeprefix("data/minecraft/advancement/").removesuffix(".json")
+		icons[f"advancement:{advancement}"] = (key.rsplit(".", 1)[-1], "Invicon_" + title.replace(" ", "_") + ".png")
+	return icons
+
+
 def invicon_filenames(item_id: str, lang: dict[str, str]) -> list[str]:
 	return ["Invicon_" + title.replace(" ", "_") + ".png" for title in invicon_titles(item_id, lang)]
 
@@ -966,6 +988,9 @@ def copy_pngs(jar: zipfile.ZipFile) -> None:
 			dest = STATIC / "item" / Path(name).name
 		elif name.startswith("assets/minecraft/textures/block/"):
 			dest = STATIC / "block" / Path(name).name
+		elif name.startswith("assets/minecraft/textures/gui/sprites/advancements/") and "_frame_" in name:
+			# The background shapes of advancements: task, goal and challenge, each obtained and unobtained.
+			dest = STATIC / "advancement" / Path(name).name
 		elif name == "assets/minecraft/textures/entity/chest/normal.png":
 			dest = STATIC / "entity" / "chest.png"
 		elif name == "assets/minecraft/textures/entity/chest/ender.png":
@@ -1234,6 +1259,11 @@ def main() -> None:
 				{block_id: (block_id.removeprefix("minecraft:"), invicon_filenames(block_id, en_us)) for block_id in itemless},
 			)
 		)
+		named = named_advancement_icons(jar, en_us)
+		named_files = download_wiki_images(
+			"named advancement icons", inv_cache, "inv", {name: (name, [file]) for name, file in set(named.values())}
+		)
+		icons.update({key: named_files[name] for key, (name, _) in named.items() if name in named_files})
 		specials = {
 			"minecraft:white_banner": "/mc/block/white_wool.png",
 			"minecraft:water": "/mc/block/water_still.png",

@@ -6,6 +6,7 @@
 	import BackNav from '$lib/components/BackNav.svelte';
 	import HomePodium from '$lib/components/HomePodium.svelte';
 	import Loader from '$lib/components/Loader.svelte';
+	import AdvancementIcon from '$lib/components/AdvancementIcon.svelte';
 	import McItem from '$lib/components/McItem.svelte';
 	import PlayerSkin from '$lib/components/PlayerSkin.svelte';
 	import SearchField from '$lib/components/SearchField.svelte';
@@ -95,7 +96,7 @@
 	{#if most}
 		<McItem id="minecraft:experience_bottle" />
 	{:else if detail}
-		<McItem id={detail.icon} />
+		<AdvancementIcon id={detail.id} icon={detail.icon} frame={detail.frame} obtained={entries.length > 0} />
 	{/if}
 	{heading}
 </svelte:element>

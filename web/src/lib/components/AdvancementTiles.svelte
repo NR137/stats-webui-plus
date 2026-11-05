@@ -4,6 +4,7 @@
 	let {
 		items,
 		dim,
+		obtained,
 		showHolders = false,
 		when
 	}: {
@@ -12,10 +13,13 @@
 			title?: string;
 			description?: string;
 			icon: string;
+			frame?: string;
 			holders?: number;
 			hidden?: boolean;
 		}>;
 		dim?: (item: { id: string; hidden?: boolean }) => boolean;
+		// Gold frame; without this function every tile is obtained (e.g. what one player has and the other not).
+		obtained?: (item: { id: string; holders?: number }) => boolean;
 		showHolders?: boolean;
 		when?: (item: { id: string }) => string | undefined;
 	} = $props();
@@ -23,14 +27,20 @@
 
 <div class="tiles">
 	{#each items as item (item.id)}
-		<AdvancementTile {item} dim={dim?.(item) ?? false} {showHolders} when={when?.(item)} />
+		<AdvancementTile
+			{item}
+			dim={dim?.(item) ?? false}
+			obtained={obtained?.(item) ?? true}
+			{showHolders}
+			when={when?.(item)}
+		/>
 	{/each}
 </div>
 
 <style>
 	.tiles {
 		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(8.4rem, 1fr));
+		grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
 		gap: 0.45rem;
 	}
 </style>

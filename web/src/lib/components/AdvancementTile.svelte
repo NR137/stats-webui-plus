@@ -4,13 +4,14 @@
 		advancementHref,
 		advancementTitle
 	} from '$lib/advancements';
-	import McItem from '$lib/components/McItem.svelte';
+	import AdvancementIcon from '$lib/components/AdvancementIcon.svelte';
 	import Tooltip from '$lib/components/Tooltip.svelte';
 	import { t } from '$lib/i18n/i18n.svelte';
 
 	let {
 		item,
 		dim = false,
+		obtained = true,
 		showHolders = false,
 		when
 	}: {
@@ -19,9 +20,12 @@
 			title?: string;
 			description?: string;
 			icon: string;
+			frame?: string;
 			holders?: number;
 		};
+		// Fades the texts (not the icon), e.g. not obtained by this player.
 		dim?: boolean;
+		obtained?: boolean;
 		showHolders?: boolean;
 		// When the player completed it, already formatted.
 		when?: string;
@@ -32,9 +36,12 @@
 	<Tooltip text={advancementDescription(item.id, item.description ?? '')}>
 		<a class="tile slot" class:dim href={advancementHref(item.id)}>
 			<span class="glyph">
-				<McItem id={item.icon} />
+				<AdvancementIcon id={item.id} icon={item.icon} frame={item.frame} {obtained} />
 			</span>
-			<span class="label">{advancementTitle(item.id, item.title)}</span>
+			<!-- Coloured like the game's chat announces them: challenges purple, tasks and goals green. -->
+			<span class="label" class:challenge={item.frame === 'challenge'}
+				>{advancementTitle(item.id, item.title)}</span
+			>
 			{#if showHolders}
 				<span class="holders" class:none={!item.holders}
 					>{t('advancements.holders', { count: item.holders ?? 0 })}</span
@@ -71,15 +78,15 @@
 		min-height: 8.2rem;
 	}
 
-	.tile.dim {
+	.tile.dim .label,
+	.tile.dim .holders,
+	.tile.dim .when {
 		opacity: 0.45;
 	}
 
 	.glyph {
 		display: grid;
 		place-items: center;
-		width: 2.6rem;
-		height: 2.6rem;
 		margin-bottom: 0.15rem;
 	}
 
@@ -87,23 +94,35 @@
 	.holders,
 	.when {
 		color: var(--color-muted);
-		font-size: 0.72rem;
+		font-size: 0.75rem;
 		line-height: 1.25;
 	}
 
+	.label {
+		font-size: 0.875rem;
+	}
+
+	/* The title carries the colour; date and holders stay neutral below it. */
 	.holders,
 	.when {
+		color: var(--color-text);
+	}
+
+	.label {
 		color: var(--color-accent);
 	}
 
-	/* Nobody has it yet: fainter than the label, the accent colour is for advancements someone finished. */
+	.label.challenge {
+		color: var(--color-challenge);
+	}
+
+	/* Nobody has it yet: fainter than the label. */
 	.holders.none {
 		color: var(--color-muted);
 		opacity: 0.55;
 	}
 
 	.when {
-		font-size: 0.66rem;
 		font-variant-numeric: tabular-nums;
 	}
 </style>

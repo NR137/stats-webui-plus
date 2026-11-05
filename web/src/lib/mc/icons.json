@@ -1,4 +1,6 @@
 {
+	"advancement:minecraft:adventure/hero_of_the_village": "/mc/inv/ominous_banner.png",
+	"advancement:minecraft:adventure/voluntary_exile": "/mc/inv/ominous_banner.png",
 	"entity:minecraft:acacia_boat": "/mc/mob/acacia_boat.png",
 	"entity:minecraft:allay": "/mc/mob/allay.png",
 	"entity:minecraft:area_effect_cloud": "/mc/mob/area_effect_cloud.png",

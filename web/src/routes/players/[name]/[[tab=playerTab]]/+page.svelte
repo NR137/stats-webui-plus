@@ -382,6 +382,7 @@
 						<AdvancementTiles
 							items={section.ids}
 							dim={(item) => !doneIds.has(item.id)}
+							obtained={(item) => doneIds.has(item.id)}
 							when={(item) => (doneTimes[item.id] ? formatWhen(doneTimes[item.id]) : undefined)}
 						/>
 					{/if}
@@ -760,7 +761,7 @@
 
 	.count {
 		margin-left: 0.45rem;
-		font-size: 0.78rem;
+		font-size: 0.75rem;
 	}
 
 	.toggle {
@@ -768,13 +769,13 @@
 		align-items: center;
 		gap: 0.4rem;
 		color: var(--color-muted);
-		font-size: 0.78rem;
+		font-size: 0.75rem;
 		cursor: pointer;
 	}
 
 	.tiles {
 		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(8.4rem, 1fr));
+		grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
 		gap: 0.45rem;
 	}
 
@@ -805,12 +806,16 @@
 	.amount {
 		color: var(--color-gold);
 		font-variant-numeric: tabular-nums;
-		font-size: 1.05rem;
+		font-size: 1.125rem;
 	}
 
-	.label,
+	.label {
+		font-size: 0.875rem;
+		line-height: 1.25;
+	}
+
 	.place {
-		font-size: 0.72rem;
+		font-size: 0.75rem;
 		line-height: 1.25;
 	}
 

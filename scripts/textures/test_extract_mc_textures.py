@@ -6,11 +6,13 @@ its transparency in grayscale and RGB images (tRNS) and wiki downloads (rate lim
 
 import email.message
 import io
+import json
 import random
 import sys
 import tempfile
 import unittest
 import urllib.error
+import zipfile
 from contextlib import redirect_stdout
 from pathlib import Path
 
@@ -194,6 +196,36 @@ class WikiDownloads(unittest.TestCase):
 		self.assertTrue(all(1 <= pause <= tex.MAX_PAUSE_SECONDS for pause in pauses), pauses)
 		self.assertEqual(pauses, sorted(pauses), pauses)
 		self.assertGreater(pauses[-1], pauses[0], pauses)
+
+
+class NamedAdvancementIcons(unittest.TestCase):
+	"""CHANGELOG 1.4.0: an advancement whose icon is a special item with its own name (the Ominous Banner) gets the
+	wiki's icon of that item; plain icons are left to the item icons."""
+
+	def jar(self, advancements: dict[str, dict]) -> zipfile.ZipFile:
+		buffer = io.BytesIO()
+		with zipfile.ZipFile(buffer, 'w') as jar:
+			for path, data in advancements.items():
+				jar.writestr(f'data/minecraft/advancement/{path}.json', json.dumps(data))
+			jar.writestr('assets/minecraft/lang/en_us.json', '{}')
+		return zipfile.ZipFile(buffer)
+
+	def test_named_item_gets_its_wiki_icon(self):
+		banner = {'display': {'icon': {'id': 'minecraft:white_banner', 'components': {
+			'minecraft:item_name': {'translate': 'block.minecraft.ominous_banner'}}}}}
+		jar = self.jar({
+			'adventure/voluntary_exile': banner,
+			'story/mine_stone': {'display': {'icon': {'id': 'minecraft:wooden_pickaxe'}}},
+			'recipes/misc/stick': {'criteria': {}},
+		})
+		icons = tex.named_advancement_icons(jar, {'block.minecraft.ominous_banner': 'Ominous Banner'})
+		self.assertEqual(icons, {
+			'advancement:minecraft:adventure/voluntary_exile': ('ominous_banner', 'Invicon_Ominous_Banner.png')})
+
+	def test_unknown_name_is_skipped(self):
+		jar = self.jar({'adventure/x': {'display': {'icon': {'id': 'minecraft:stone', 'components': {
+			'minecraft:item_name': {'translate': 'item.unknown'}}}}}})
+		self.assertEqual(tex.named_advancement_icons(jar, {}), {})
 
 
 class FailedDownloads(unittest.TestCase):
