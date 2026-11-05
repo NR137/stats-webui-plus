@@ -72,7 +72,7 @@
 </svelte:head>
 
 <svelte:element this={pageTitleTag()} class="page-title">{t('home.heading')}</svelte:element>
-<p class="lead">{t('home.lead')}</p>
+<p class="lead">{t('home.lead')} <a class="how" href="/about">{t('about.howLink')}</a></p>
 
 {#if failed}
 	<p class="empty">{t('home.apiError')}</p>
@@ -122,6 +122,17 @@
 		font-size: 2rem;
 		margin: 0 0 0.4rem;
 		text-align: center;
+	}
+
+	.how {
+		display: inline-block;
+		color: var(--color-text);
+		border-bottom: 1px dotted currentColor;
+	}
+
+	.how:hover,
+	.how:focus-visible {
+		color: var(--color-hover);
 	}
 
 	.lead {

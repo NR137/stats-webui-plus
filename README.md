@@ -58,7 +58,7 @@ Settings live in `config/stats_webui_plus.json` on the server. The file is creat
 
 ### 🔗 Menu links
 
-`links` adds buttons to the menu, after the normal entries and before the language/theme switchers. Three placeholders are preconfigured; a button only appears once its `url` is filled in:
+`links` adds buttons to the menu, in a row of their own below the pages (on phones inside the menu). Three placeholders are preconfigured; a button only appears once its `url` is filled in:
 
 ```json
 "links": [

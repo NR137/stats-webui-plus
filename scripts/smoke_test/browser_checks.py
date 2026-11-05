@@ -3,6 +3,7 @@
 Needs Playwright (scripts/requirements.txt) and its Chromium: scripts/.venv/bin/playwright install --only-shell chromium
 """
 
+import json
 import re
 from urllib.parse import quote
 
@@ -19,6 +20,7 @@ def run(base: str, names: list[str], check) -> None:
 		try:
 			_checks(browser, base, names, check)
 			_ui_checks(browser, base, names, check)
+			_menu_checks(browser, base, names, check)
 		finally:
 			browser.close()
 
@@ -81,8 +83,13 @@ def _checks(browser, base: str, names: list[str], check) -> None:
 	page.wait_for_url(re.compile(r'/leaderboards/.+'))
 	check(any(_shows(page, name) for name in names[:3]), 'a leaderboard from the overview lists players')
 
-	page.goto(base + '/about')
-	check(_shows(page, 'Real combat, 22 %'), 'the How we rank page explains the weights')
+	# CHANGELOG 1.4.0: "How we rank" left the menu; the footer and the ranking link to it.
+	page.goto(base + '/')
+	check(page.locator('nav a[href="/about"]').count() == 0, 'How we rank is no longer in the menu')
+	page.get_by_role('link', name='How is this calculated?').click()
+	page.wait_for_url(re.compile(r'/about$'))
+	check(_shows(page, 'Real combat, 22 %'), 'the ranking links to the How we rank page, which explains the weights')
+	check(page.locator('footer a[href="/about"]').count() == 1, 'the footer links to How we rank')
 	check(not errors, f'no JavaScript errors on any page ({"; ".join(errors[:3]) or "none"})')
 	page.context.close()
 
@@ -99,6 +106,21 @@ def _checks(browser, base: str, names: list[str], check) -> None:
 		page.wait_for_load_state('networkidle')
 		wide = page.evaluate('document.documentElement.scrollWidth - window.innerWidth')
 		check(wide <= 0, f'{path} fits a 390 px phone screen ({wide} px too wide)')
+
+	# CHANGELOG 1.4.0: on phones the pages are behind one button naming the current page; it closes after choosing.
+	page.goto(base + '/')
+	toggle = page.get_by_role('button', name='Menu: Ranking')
+	check(toggle.is_visible() and not page.get_by_role('link', name='Leaderboards').is_visible(),
+		'the phone menu is one button naming the page, the pages are hidden')
+	toggle.click()
+	page.get_by_role('link', name='Leaderboards').click()
+	page.wait_for_url(re.compile(r'/leaderboards$'))
+	check(page.get_by_role('button', name='Menu: Leaderboards').is_visible()
+		and not page.get_by_role('link', name='Leaderboards').is_visible(),
+		'choosing a page in the phone menu opens it and closes the menu')
+	check(page.get_by_role('button', name=re.compile(r'^Language:')).is_visible()
+		and page.get_by_role('button', name=re.compile(r'^Theme:')).is_visible(),
+		'language and theme stay reachable next to the phone menu')
 	check(not errors, f'no JavaScript errors on the phone ({"; ".join(errors[:3]) or "none"})')
 	page.context.close()
 
@@ -170,4 +192,91 @@ def _ui_checks(browser, base: str, names: list[str], check) -> None:
 		drawn = False
 	check(drawn and page.locator('.skin.body.failed').count() == 0, 'the 3D avatar is drawn with the player\'s skin')
 	check(not errors, f'no JavaScript errors in these checks ({"; ".join(errors[:3]) or "none"})')
+	page.context.close()
+
+
+def _header_height(browser, base: str, locale: str, links=None, width=1280) -> tuple[Page, float]:
+	"""A page in the given language, after the fonts and the splash text are laid out; links replaces the server's
+	custom links (as /api/status sends them)."""
+	page, _ = _page(browser, locale=locale, viewport={'width': width, 'height': 800})
+	if links is not None:
+		def status(route, request):
+			response = route.fetch()
+			body = response.json()
+			body['links'] = links
+			route.fulfill(response=response, body=json.dumps(body))
+		page.route('**/api/status', status)
+	page.goto(base + '/')
+	page.locator('.splash.ready').wait_for()
+	page.evaluate('document.fonts.ready')
+	page.wait_for_timeout(300)
+	return page, page.evaluate("document.querySelector('header.top').getBoundingClientRect().height")
+
+
+def _boxes(page: Page, selector: str) -> list[dict]:
+	return page.evaluate(f"""() => [...document.querySelectorAll('{selector}')].map(element => {{
+		const box = element.getBoundingClientRect();
+		return {{ top: Math.round(box.top), width: Math.round(box.width), height: Math.round(box.height),
+			fits: element.scrollWidth <= element.clientWidth }};
+	}})""")
+
+
+def _menu_checks(browser, base: str, names: list[str], check) -> None:
+	"""CHANGELOG 1.4.0: the header and the menu stay put when the language changes; the menu on phones."""
+	# The default taglines differ in length per language; the header keeps its height anyway.
+	for width in (1280, 390):
+		heights = {}
+		for locale in ('en-US', 'de-DE', 'es-ES', 'fr-FR'):
+			page, heights[locale] = _header_height(browser, base, locale, width=width)
+			page.context.close()
+		check(len(set(heights.values())) == 1, f'the header is equally high in every language at {width} px ({heights})')
+
+	# Custom link buttons: as wide as the longest label in any language, the same in every language, and a label
+	# too long even for that wraps, with the whole row growing to the same height.
+	links = [
+		{'label': {'en': 'Map', 'de': 'Gemeinschafts-Wiki'}, 'url': 'https://map.example.com', 'newTab': True},
+		{'label': 'Discord', 'url': 'https://discord.example.com', 'newTab': True},
+	]
+	rows = {}
+	for locale in ('en-US', 'de-DE'):
+		page, _ = _header_height(browser, base, locale, links)
+		rows[locale] = _boxes(page, '.links a')
+		page.context.close()
+	widths = {box['width'] for row in rows.values() for box in row}
+	check(len(widths) == 1 and min(widths) > 128 and all(box['fits'] for row in rows.values() for box in row),
+		f'link buttons are as wide as the longest label in any language, in every language ({rows})')
+	long_label = 'A very long custom link label that cannot fit on one line of the button'
+	page, _ = _header_height(browser, base, 'en-US', [{'label': long_label, 'url': 'https://wiki.example.com'}] + links)
+	row = _boxes(page, '.links a, .settings .trigger')
+	page.context.close()
+	# Buttons that don't fit next to them move to the next line, which keeps its own height.
+	line = [box for box in row if box['top'] == row[0]['top']]
+	check(row and row[0]['width'] <= 256 and row[0]['height'] > 40 and len({box['height'] for box in line}) == 1,
+		f'a label too long for 16rem wraps, and its whole line grows with it ({row})')
+
+	# Player page: the grades and the advancement tier link to How we rank.
+	page, errors = _page(browser)
+	page.goto(f'{base}/players/{quote(names[0], safe="")}')
+	page.get_by_role('link', name='What are tiers?').click()
+	page.wait_for_url(re.compile(r'/about#tiers$'))
+	check(_shows(page, 'Advancement tiers'), 'a player\'s advancement tier links to the tiers on How we rank')
+	page.go_back()
+	check(_shows(page, 'How is this calculated?'), 'a player\'s grades link to How we rank')
+	check(not errors, f'no JavaScript errors on the player page ({"; ".join(errors[:3]) or "none"})')
+	page.context.close()
+
+	# Phones: Escape and a tap outside close the menu too.
+	page, errors = _page(browser, viewport={'width': 390, 'height': 844}, is_mobile=True, has_touch=True)
+	page.goto(base + '/')
+	toggle = page.get_by_role('button', name='Menu: Ranking')
+	pages_link = page.get_by_role('link', name='Leaderboards')
+	toggle.click()
+	opened = pages_link.is_visible()
+	page.keyboard.press('Escape')
+	check(opened and not pages_link.is_visible(), 'Escape closes the phone menu')
+	toggle.click()
+	page.locator('main').tap(position={'x': 10, 'y': 10})
+	check(not pages_link.is_visible(), 'a tap outside closes the phone menu')
+	check(toggle.get_attribute('aria-expanded') == 'false', 'the menu button tells screen readers it is closed')
+	check(not errors, f'no JavaScript errors in the phone menu ({"; ".join(errors[:3]) or "none"})')
 	page.context.close()

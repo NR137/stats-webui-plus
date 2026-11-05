@@ -13,7 +13,9 @@ export default defineConfig({
 		proxy: {
 			// The mod's API and its Mojang proxy (skin cache, default skins for players without one of their own).
 			'/api': api,
-			'/mojang': api
+			'/mojang': api,
+			// The configured header image (config headerImage).
+			'/header-image': api
 		}
 	},
 	preview: {

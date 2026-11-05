@@ -15,7 +15,8 @@
 		value,
 		options,
 		onselect,
-		showLabel = false
+		showLabel = false,
+		compact = false
 	}: {
 		id: string;
 		label: string;
@@ -24,6 +25,8 @@
 		onselect: (id: string) => void;
 		// Show "<label>: <choice>" on the button, for choices that don't explain themselves ("System").
 		showLabel?: boolean;
+		// Only the current choice's icon on a square button; the list opens towards the left.
+		compact?: boolean;
 	} = $props();
 
 	const open = $derived(headerMenu.open === id);
@@ -35,17 +38,20 @@
 	}
 </script>
 
-<div class="wrap" use:registerMenuRoot>
+<div class="wrap" class:compact use:registerMenuRoot>
 	<button
 		type="button"
 		class="mc-btn trigger"
+		title={compact ? `${label}: ${current.label}` : undefined}
 		aria-haspopup="listbox"
 		aria-expanded={open}
 		aria-label="{label}: {current.label}"
 		onclick={() => toggleMenu(id)}
 	>
 		<Icon name={current.icon} />
-		<span>{showLabel ? `${label}: ${current.label}` : current.label}</span>
+		{#if !compact}
+			<span>{showLabel ? `${label}: ${current.label}` : current.label}</span>
+		{/if}
 		<span class="chevron" class:up={open}><Icon name="chevron" /></span>
 	</button>
 	{#if open}
@@ -101,6 +107,27 @@
 		list-style: none;
 		background: var(--color-card);
 		border: 2px solid var(--color-border);
+	}
+
+	.compact {
+		width: auto;
+	}
+
+	.compact .trigger {
+		width: 3.4rem;
+		gap: 0.2rem;
+		padding: 0;
+	}
+
+	.compact .chevron {
+		position: static;
+		font-size: 0.75em;
+	}
+
+	.compact .panel {
+		left: auto;
+		width: max-content;
+		min-width: 11rem;
 	}
 
 	.panel button {

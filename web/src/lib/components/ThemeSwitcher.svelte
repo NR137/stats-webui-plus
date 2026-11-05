@@ -16,6 +16,8 @@
 		dark: 'moon'
 	};
 
+	let { compact = false }: { compact?: boolean } = $props();
+
 	const options = $derived(
 		themes.map((option) => ({
 			id: option,
@@ -31,5 +33,6 @@
 	value={theme.preference}
 	{options}
 	showLabel
+	{compact}
 	onselect={(next) => setTheme(next as Theme)}
 />

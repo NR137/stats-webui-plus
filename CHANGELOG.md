@@ -7,6 +7,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+#### Menu
+
+- **The menu takes far less space.** On phones it is one button naming the current page (e.g. "☰ Ranking") that
+  opens the pages and closes again after choosing one, instead of up to eleven buttons stacked above the content.
+  On wider screens the pages sit in three columns (two on tablets), with an unfinished last row centred; button
+  widths stay the same in every language.
+- **Custom menu links** (Map, Discord, ...) and language and theme, now two icon buttons, share a row of smaller
+  buttons below the pages; on phones language and theme sit next to the menu button. Like the pages, these buttons
+  keep their width in every language: all link buttons are as wide as the longest label in any enabled language (8 to
+  16rem), and when a label still wraps, the whole row grows to the same height.
+- **"How we rank" left the menu.** The footer links to it, and so do the ranking and a player's grades ("How is this
+  calculated?") and their advancement tier ("What are tiers?").
+
 #### Project and build
 
 - **Failed minecraft.wiki downloads fail the build** (rate limits, outages, timeouts; a missing image is still fine),
@@ -18,6 +31,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - GitHub Actions updated to their current versions, which run on Node.js 24 (Node.js 20 is being retired on GitHub).
 
 ### Fixed
+
+#### Web UI
+
+- The header no longer changes its height a little when switching the language: the room under the site heading for
+  the tilted tagline is kept for the longest tagline of all languages.
 
 #### Project and build
 

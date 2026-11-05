@@ -10,6 +10,8 @@
 		de: 'language.de'
 	};
 
+	let { compact = false }: { compact?: boolean } = $props();
+
 	const localeIcons: Record<Locale, IconName> = {
 		es: 'es',
 		en: 'en',
@@ -35,6 +37,7 @@
 		label={t('language.label')}
 		value={i18n.locale}
 		{options}
+		{compact}
 		onselect={(next) => setLocale(next as Locale)}
 	/>
 {/if}

@@ -284,7 +284,10 @@
 			</div>
 			{#if shownGrades.length > 0}
 				<div class="grades">
-					<p class="section">{t('player.grades')}</p>
+					<p class="section">
+						{t('player.grades')}
+						<a class="info-link" href="/about">{t('about.howLink')}</a>
+					</p>
 					{#each shownGrades as id}
 						{@const grade = player.grades[id] ?? 0}
 						<div class="grade">
@@ -302,7 +305,10 @@
 			{/if}
 			{#if advancementsTotal > 0}
 				<div class="grades">
-					<p class="section">{t('player.advancements')}</p>
+					<p class="section">
+						{t('player.advancements')}
+						<a class="info-link" href="/about#tiers">{t('player.tiersLink')}</a>
+					</p>
 					<div class="grade">
 						<span class="tier-icon tier-{progress.tier.id}"><McItem id={progress.tier.icon} /></span>
 						<div class="grade-copy">
@@ -565,6 +571,18 @@
 
 	.tier-label {
 		color: var(--color-muted);
+	}
+
+	.info-link {
+		margin-left: 0.5rem;
+		color: var(--color-muted);
+		font-size: 0.85em;
+		border-bottom: 1px dotted currentColor;
+	}
+
+	.info-link:hover,
+	.info-link:focus-visible {
+		color: var(--color-hover);
 	}
 
 	.tier-name {

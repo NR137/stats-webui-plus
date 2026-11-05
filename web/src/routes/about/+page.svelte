@@ -56,7 +56,7 @@
 	</ul>
 </section>
 
-<section class="panel">
+<section class="panel" id="tiers">
 	<h2>{t('about.tiersHeading')}</h2>
 	<p>{t('about.tiers')}</p>
 	<ul class="tiers">
