@@ -29,7 +29,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: validate gradle wrapper
         uses: gradle/actions/wrapper-validation@v6
@@ -42,7 +42,7 @@ jobs:
       # keeps the icons the same between runs and spares the wiki thousands of downloads; a new Minecraft version or
       # script starts from the previous cache and only adds what changed.
       - name: cache texture downloads
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: scripts/.cache
           key: mc-textures-${{ hashFiles('gradle.properties', 'scripts/textures/extract_mc_textures.py') }}
@@ -73,6 +73,10 @@ jobs:
               exit 1
             fi
             echo "::warning::'$header' has no release date yet"
+          elif [ "$DRAFT_RELEASE" = "true" ] && [ "${header##* - }" != "$(date -u +%F)" ]; then
+            # Only a warning: fixing CHANGELOG.md would need another pull request into main. The date can be corrected
+            # in the draft's notes by hand.
+            echo "::warning::'$header' is not today's date ($(date -u +%F) UTC); check the date in the draft's notes"
           fi
           # Everything between this version's heading and the next one.
           awk -v heading="$header" '$0 == heading { found = 1; next } found && /^## / { exit } found' CHANGELOG.md > release-notes.md
@@ -93,7 +97,7 @@ jobs:
       # Without a draft release, the JARs and notes are attached to the run for a day, to check them.
       - name: attach jars to the run
         if: ${{ !inputs.draft_release }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: stats-webui-plus-${{ steps.version.outputs.full }}
           path: |

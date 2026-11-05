@@ -3,6 +3,7 @@ import json
 import os
 import shutil
 import struct
+import sys
 import threading
 import time
 import urllib.error
@@ -21,6 +22,10 @@ ADVANCEMENT_LANG = ROOT / "web" / "src" / "lib" / "mc" / "advancementLang.json"
 # minecraft.wiki downloads can change between Minecraft versions, so they are cached in <root>/<version>/.
 INV_CACHE_ROOT = ROOT / "scripts" / ".cache" / "invicons"
 MOB_CACHE_ROOT = ROOT / "scripts" / ".cache" / "mob-sprites"
+# Lists the wiki downloads that failed in the last run; while it exists, Gradle runs this script again on every build.
+FAILED_DOWNLOADS = ROOT / "scripts" / ".cache" / "failed-downloads.txt"
+# Set to 1 to build with fallback icons when wiki downloads fail (e.g. a short wiki outage), instead of failing.
+ALLOW_FAILURES_ENV = "ALLOW_TEXTURE_DOWNLOAD_FAILURES"
 JAR_CACHE = ROOT / "scripts" / ".cache" / "minecraft"
 MANIFEST_URL = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"
 ASSET_CDN = "https://resources.download.minecraft.net"
@@ -587,6 +592,7 @@ def is_placeholder(data: bytes, extension: str) -> bool:
 _pause_lock = threading.Lock()
 _pause_until = 0.0
 _failures: Counter[str] = Counter()
+_all_failures: Counter[str] = Counter()
 MAX_PAUSE_SECONDS = 60.0
 
 
@@ -712,8 +718,29 @@ def download_wiki_images(
 	print(f"Got {len(found)} {label}")
 	if _failures:
 		summary = ", ".join(f"{reason} x{count}" for reason, count in _failures.most_common())
-		print(f"Some downloads failed and will be retried on the next build: {summary}")
+		print(f"Some {label} could not be downloaded: {summary}")
+		_all_failures.update(_failures)
 	return found
+
+
+def finish_downloads(allow_failures: bool) -> None:
+	"""Fails the build when wiki downloads failed, unless allowed. A 404 is no failure: the wiki has no such image.
+	Either way the failed downloads are tried again on the next build."""
+	if not _all_failures:
+		FAILED_DOWNLOADS.unlink(missing_ok=True)
+		return
+	summary = ", ".join(f"{reason} x{count}" for reason, count in _all_failures.most_common())
+	FAILED_DOWNLOADS.parent.mkdir(parents=True, exist_ok=True)
+	FAILED_DOWNLOADS.write_text(summary + "\n", encoding="utf-8")
+	if allow_failures:
+		print(f"Warning: minecraft.wiki downloads failed ({summary}); the web UI shows fallback icons for them.")
+		print("The next build tries them again.")
+		return
+	sys.exit(
+		f"minecraft.wiki downloads failed ({summary}). Try the build again later. To build with fallback icons "
+		f"for now, set {ALLOW_FAILURES_ENV}=1, e.g. docker compose run --rm -e {ALLOW_FAILURES_ENV}=1 dev "
+		"./tasks.sh build"
+	)
 
 
 def invicon_filenames(item_id: str, lang: dict[str, str]) -> list[str]:
@@ -1143,6 +1170,12 @@ def main() -> None:
 		action="store_true",
 		help="delete this version's cached downloads (client JAR, language files, inventory icons) and fetch them again",
 	)
+	parser.add_argument(
+		"--allow-download-failures",
+		action="store_true",
+		default=os.environ.get(ALLOW_FAILURES_ENV) == "1",
+		help=f"only warn when wiki downloads fail and use fallback icons (default: fail; also {ALLOW_FAILURES_ENV}=1)",
+	)
 	args = parser.parse_args()
 	inv_cache = INV_CACHE_ROOT / args.version
 	mob_cache = MOB_CACHE_ROOT / args.version
@@ -1321,6 +1354,7 @@ def main() -> None:
 		write_advancement_lang(jar, args.version)
 		write_name_lang(jar, args.version)
 		print(f"Wrote {len(icons)} icons and textures to {STATIC}")
+	finish_downloads(args.allow_download_failures)
 
 
 def lang_entries(data) -> dict[str, str]:

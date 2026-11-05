@@ -16,6 +16,38 @@ web_texts() {
 	fi
 }
 
+# Every pull request into main is a release, so CHANGELOG.md's top section must be that release: mod_version with a
+# date, and no Unreleased section.
+check_changelog() {
+	local version heading date previous
+	version=$(sed -n 's/^mod_version=//p' gradle.properties)
+	if grep -Eiq '^## \[unreleased\]' CHANGELOG.md; then
+		echo "CHANGELOG.md has an Unreleased section; main only has released versions" >&2
+		return 1
+	fi
+	heading=$(grep -m1 '^## \[' CHANGELOG.md || true)
+	if [ "${heading%% - *}" != "## [$version]" ]; then
+		echo "CHANGELOG.md's top section is '$heading', but mod_version in gradle.properties is $version" >&2
+		return 1
+	fi
+	if ! [[ "$heading" =~ \ -\ ([0-9]{4}-[0-9]{2}-[0-9]{2})$ ]] || ! date -d "${BASH_REMATCH[1]}" > /dev/null 2>&1; then
+		echo "Give the release a date in CHANGELOG.md: '$heading' should be '## [$version] - YYYY-MM-DD'" >&2
+		return 1
+	fi
+	# Catches typos in the date (ISO dates compare as strings).
+	date=${BASH_REMATCH[1]}
+	if [[ "$date" > "$(date -u +%F)" ]]; then
+		echo "CHANGELOG.md: $version's date $date is in the future (today is $(date -u +%F) UTC)" >&2
+		return 1
+	fi
+	previous=$(grep '^## \[' CHANGELOG.md | sed -n '2s/.* - \([0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}\)$/\1/p')
+	if [ -n "$previous" ] && [[ "$date" < "$previous" ]]; then
+		echo "CHANGELOG.md: $version's date $date is before the previous release's ($previous)" >&2
+		return 1
+	fi
+	echo "CHANGELOG.md: $heading"
+}
+
 task() {
 	case "$1" in
 		build) # Both JARs, with the web UI and textures
@@ -29,6 +61,8 @@ task() {
 			(cd web && corepack yarn install --immutable && corepack yarn check && corepack yarn test) ;;
 		test-scripts) # Python tests of scripts/ (texture script helpers)
 			python3 -m unittest discover -s scripts/textures -p 'test_*.py' ;;
+		changelog) # CHANGELOG.md is ready for a release: top section = mod_version, dated, no Unreleased
+			check_changelog ;;
 		test) # The quick tests: test-java, test-web and test-scripts
 			task test-java
 			task test-web

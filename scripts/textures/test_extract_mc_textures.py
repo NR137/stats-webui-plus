@@ -11,6 +11,7 @@ import sys
 import tempfile
 import unittest
 import urllib.error
+from contextlib import redirect_stdout
 from pathlib import Path
 
 from PIL import Image
@@ -193,6 +194,59 @@ class WikiDownloads(unittest.TestCase):
 		self.assertTrue(all(1 <= pause <= tex.MAX_PAUSE_SECONDS for pause in pauses), pauses)
 		self.assertEqual(pauses, sorted(pauses), pauses)
 		self.assertGreater(pauses[-1], pauses[0], pauses)
+
+
+class FailedDownloads(unittest.TestCase):
+	"""CHANGELOG 1.4.0: failed wiki downloads fail the build, unless ALLOW_TEXTURE_DOWNLOAD_FAILURES=1 is set; a missing
+	image (404) is no failure. Failed downloads are tried again on the next build."""
+
+	def setUp(self):
+		self.folder = tempfile.TemporaryDirectory()
+		self.addCleanup(self.folder.cleanup)
+		self.patch(tex, 'FAILED_DOWNLOADS', Path(self.folder.name) / 'failed-downloads.txt')
+		self.patch(tex.time, 'sleep', lambda seconds: None)
+		self.patch(tex, 'pause_all', lambda seconds: None)
+		tex._all_failures.clear()
+		self.addCleanup(tex._all_failures.clear)
+
+	def patch(self, owner, name, value):
+		original = getattr(owner, name)
+		setattr(owner, name, value)
+		self.addCleanup(setattr, owner, name, original)
+
+	def download_with(self, status):
+		def urlopen(request, timeout):
+			raise urllib.error.HTTPError(request.full_url, status, 'error', email.message.Message(), None)
+		self.patch(tex.urllib.request, 'urlopen', urlopen)
+		cache = Path(self.folder.name) / 'cache'
+		with redirect_stdout(io.StringIO()):
+			return tex.download_wiki_images('icons', cache, 'inv', {'minecraft:stone': ('stone', ['Invicon_Stone.png'])})
+
+	def test_failure_fails_the_build(self):
+		self.assertEqual(self.download_with(500), {})
+		with self.assertRaises(SystemExit) as exit:
+			tex.finish_downloads(allow_failures=False)
+		self.assertIn('HTTP 500', str(exit.exception.code))
+		self.assertIn(tex.ALLOW_FAILURES_ENV, str(exit.exception.code))
+		self.assertTrue(tex.FAILED_DOWNLOADS.exists())
+
+	def test_rate_limit_that_never_ends_fails_the_build(self):
+		self.download_with(429)
+		with self.assertRaises(SystemExit):
+			tex.finish_downloads(allow_failures=False)
+
+	def test_allowed_failure_only_warns_and_is_retried(self):
+		self.download_with(503)
+		with redirect_stdout(io.StringIO()) as out:
+			tex.finish_downloads(allow_failures=True)
+		self.assertIn('fallback icons', out.getvalue())
+		self.assertTrue(tex.FAILED_DOWNLOADS.exists(), 'the marker makes Gradle run the script again')
+
+	def test_missing_image_is_no_failure(self):
+		self.download_with(404)
+		tex.FAILED_DOWNLOADS.write_text('HTTP 503 x1\n')
+		tex.finish_downloads(allow_failures=False)
+		self.assertFalse(tex.FAILED_DOWNLOADS.exists(), 'a build without failures clears the marker')
 
 
 if __name__ == '__main__':

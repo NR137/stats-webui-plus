@@ -41,13 +41,13 @@ jobs:
         loader: [fabric, neoforge]
     steps:
       - name: checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: dev image
         uses: ./.github/actions/dev-image
 
       - name: cache minecraft downloads
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: scripts/.cache
           key: mc-textures-${{ runner.arch }}-${{ hashFiles('gradle.properties', 'scripts/textures/extract_mc_textures.py') }}
@@ -68,7 +68,7 @@ jobs:
 
       - name: attach report
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: load-test-${{ matrix.loader }}-${{ runner.arch }}
           path: build/load-test/*.json

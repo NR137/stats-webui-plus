@@ -23,6 +23,7 @@ import platform
 import random
 import shutil
 import statistics
+import subprocess
 import sys
 import threading
 import time
@@ -163,6 +164,17 @@ def machine() -> dict:
 				break
 	except OSError:
 		pass
+	if 'cpu' not in info:
+		# ARM64's /proc/cpuinfo only has part numbers ("CPU implementer", "CPU part"); lscpu knows their names.
+		try:
+			lscpu = subprocess.run(['lscpu'], capture_output=True, text=True, timeout=10,
+				env={**os.environ, 'LC_ALL': 'C'}).stdout
+			fields = dict(line.split(':', 1) for line in lscpu.splitlines() if ':' in line)
+			names = [fields.get(key, '').strip() for key in ('Vendor ID', 'Model name')]
+			if names[1] and names[1] != '-':
+				info['cpu'] = ' '.join(name for name in names if name and name != '-')
+		except (OSError, subprocess.SubprocessError):
+			pass
 	for key, path in (('cpu_limit', '/sys/fs/cgroup/cpu.max'), ('memory_limit', '/sys/fs/cgroup/memory.max')):
 		try:
 			info[key] = Path(path).read_text().strip()

@@ -129,7 +129,7 @@ docker compose up web                  # web UI on http://localhost:5173, /api a
 
 Connect with Minecraft to `localhost:25565`; the mod's web UI is on `http://localhost:25580`. The first start of a dev server stops until you accept Mojang's EULA in `<loader>/runs/server/eula.txt`.
 
-Minecraft textures and minecraft.wiki inventory icons are downloaded once per Minecraft version into `scripts/.cache/`. To fetch them again (e.g. after the wiki updated icons), run `./gradlew build -PrefreshTextures` (in the dev image). Icons the wiki refuses during that burst of downloads are retried on the next build.
+Minecraft textures and minecraft.wiki inventory icons are downloaded once per Minecraft version into `scripts/.cache/`. To fetch them again (e.g. after the wiki updated icons), run `./gradlew build -PrefreshTextures` (in the dev image). A download that fails (other than a missing image) fails the build, so a release never ships fallback icons by accident; build again later. If the wiki is down and you need a build now, set `ALLOW_TEXTURE_DOWNLOAD_FAILURES=1` (`docker compose run --rm -e ALLOW_TEXTURE_DOWNLOAD_FAILURES=1 dev ./tasks.sh build`): failed icons then only warn, show fallback textures, and are tried again on the next build.
 
 The SvelteKit UI is built static and shipped **inside both JARs**.
 
@@ -140,6 +140,7 @@ The SvelteKit UI is built static and shipped **inside both JARs**.
 | Task | What |
 | --- | --- |
 | `test` | `test-java`, `test-web` and `test-scripts`: the quick tests |
+| `changelog` | `CHANGELOG.md` is ready for a release: its top section is `mod_version` with a date (not in the future, not before the previous release's), and there is no Unreleased section. The `tests` workflow checks this on every pull request, because every pull request into `main` is a release |
 | `test-java` | JUnit tests of `common/` (`common/src/test`): config, ranking, session log, names, stats and API data, web server, Mojang proxy against a fake Mojang |
 | `test-web` | Type check and Vitest tests of the web UI (`web/src/**/*.test.ts`) |
 | `test-scripts` | Python tests of the texture script's helpers (PNG reader checked against Pillow, models, wiki download rules) |
@@ -157,7 +158,7 @@ A pre-commit hook runs the Java or web tests a commit touches, in the dev contai
 
 The `release` workflow (`.github/workflows/release.yml`) only runs when started by hand: **Actions → release → Run workflow**, or `gh workflow run release.yml`. Nothing starts it automatically. It runs the tests first; if one fails, nothing is built or released.
 
-1. Set `mod_version` in `gradle.properties` and give its `CHANGELOG.md` section a date (`## [x.y.z] - YYYY-MM-DD`).
+1. Set `mod_version` in `gradle.properties` and give its `CHANGELOG.md` section a date (`## [x.y.z] - YYYY-MM-DD`). Every pull request into `main` is a release, so this happens on the pull request's branch before merging; until then its `changelog` check stays red. A draft release warns when that date isn't the day of the release (UTC); fix it in the draft's notes.
 2. Run the workflow without "draft release" to only build: the two JARs and the release notes are attached to the run for a day.
 3. Run it with "draft release" to create a draft GitHub release `v<mod_version>+<minecraft_version>` with both JARs and that version's `CHANGELOG.md` section as notes. Drafts are invisible to others and create no tag; check it, then publish it on GitHub.
 

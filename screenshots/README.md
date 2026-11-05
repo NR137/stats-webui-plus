@@ -57,6 +57,6 @@ German, Spanish and French, each on a player page.
 ## Mobile layout
 
 <p>
-  <img src="mobile-ranking.png" alt="Ranking on a phone" width="300">
-  <img src="mobile-player.png" alt="Player page on a phone" width="300">
+  <img src="mobile-ranking.png" alt="Ranking on a phone" width="300" align="top">
+  <img src="mobile-player.png" alt="Player page on a phone" width="300" align="top">
 </p>

@@ -20,7 +20,7 @@ runs:
 
     # Gradle's downloads and Minecraft's decompiled sources (NeoForm), which take a few minutes to make.
     - name: cache gradle
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: |
           ${{ runner.temp }}/gradle-home/caches
@@ -29,18 +29,18 @@ runs:
         restore-keys: gradle-
 
     - name: cache yarn packages
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: ${{ runner.temp }}/yarn-cache
         key: yarn-${{ hashFiles('web/yarn.lock') }}
         restore-keys: yarn-
 
     - name: setup buildx
-      uses: docker/setup-buildx-action@v3
+      uses: docker/setup-buildx-action@v4
 
     # Layers come from the GitHub Actions cache unless docker/Dockerfile, .tool-versions or the requirements changed.
     - name: build dev image
-      uses: docker/build-push-action@v6
+      uses: docker/build-push-action@v7
       with:
         context: .
         file: docker/Dockerfile

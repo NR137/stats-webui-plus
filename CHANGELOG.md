@@ -3,9 +3,29 @@
 All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [1.4.0] - unreleased
 
-<!-- Replace "unreleased" with the release date (YYYY-MM-DD) before running the release workflow. -->
+### Changed
+
+#### Project and build
+
+- **Failed minecraft.wiki downloads fail the build** (rate limits, outages, timeouts; a missing image is still fine),
+  so a release can't ship fallback icons by accident. `ALLOW_TEXTURE_DOWNLOAD_FAILURES=1` only warns, e.g. while the
+  wiki is down.
+- A new `changelog` check (`./tasks.sh changelog`, run on every pull request) makes sure `CHANGELOG.md`'s top section
+  is `mod_version` with a date and that there is no Unreleased section: every pull request into `main` is a release.
+  The date can't be in the future or before the previous release's. A draft release warns when the date isn't today.
+- GitHub Actions updated to their current versions, which run on Node.js 24 (Node.js 20 is being retired on GitHub).
+
+### Fixed
+
+#### Project and build
+
+- Icons the wiki refused were said to be "retried on the next build", but Gradle skipped the texture task as up to
+  date. Now it runs again until they are downloaded.
+- The load test report shows the processor on ARM too (e.g. "ARM Neoverse-N2"); it was empty there.
+- The two phone screenshots in `screenshots/README.md` are aligned at the top.
+
 ## [1.3.0] - 2026-11-04
 
 First release of **Stats WebUI Plus**, a fork of [mc-stats-webui](https://github.com/borrageiros/mc-stats-webui) by
@@ -45,7 +65,8 @@ reworked web UI. All changes below are relative to mc-stats-webui 1.2.1.
 - **Site heading** on every page (`siteHeading`), with a tagline laid out, sized and pulsing like Minecraft's splash
   text (`siteHeadingTagline`, pulsing can be turned off with `siteHeadingTaglinePulse`) and a slogan under it
   (`siteHeadingSlogan`). All three can have text per language; the default config lists them for English, German,
-  Spanish and French, and a language left empty shows the English text. The site heading is the page's `<h1>`; page titles below it are `<h2>` with the same look.
+  Spanish and French, and a language left empty shows the English text. The site heading is the page's `<h1>`; page
+  titles below it are `<h2>` with the same look.
 - **Header image** at the top of every page: put it at `config/stats_webui_plus/header.png` or point `headerImage` to
   another file in the config folder (`""` turns it off). It is shown at most 120 px high and the content width,
   scaled down but never up. The mod ships a pixel-art banner and writes it there on first start, next to the new

@@ -48,9 +48,9 @@ tasks.register('extractMcTextures', Exec) {
 	outputs.dir file('web/static/mc')
 	outputs.file file('web/src/lib/mc/icons.json')
 	outputs.file file('web/src/lib/mc/advancementLang.json')
-	if (refresh) {
-		outputs.upToDateWhen { false }
-	}
+	// Failed wiki downloads (only allowed with ALLOW_TEXTURE_DOWNLOAD_FAILURES=1) are tried again on the next build.
+	def failedDownloads = file('scripts/.cache/failed-downloads.txt')
+	outputs.upToDateWhen { !refresh && !failedDownloads.exists() }
 	def script = ['scripts/textures/extract_mc_textures.py', '--version', version] + (refresh ? ['--refresh'] : [])
 	if (isWindows) {
 		commandLine(['cmd', '/c', 'python'] + script)

@@ -3,7 +3,7 @@ name: tests
 # Pushes to main, pull requests, and every release (release.yml runs this first and stops if it fails).
 # Everything runs in the dev image (docker/Dockerfile) with the commands of ./tasks.sh, as on a developer's machine.
 # Draft pull requests only get the quick tests on each push; marking one "Ready for review" runs everything, and so
-# does every push after that. Both jobs are required to merge into main (branch protection).
+# does every push after that. All three jobs are required to merge into main (branch protection).
 on:
   push:
     branches: [main]
@@ -20,6 +20,20 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Every pull request into main is a release (main has no unreleased changes), so CHANGELOG.md's top section must be
+  # the version in gradle.properties, with a date. Only bash and grep, so it runs without the dev image. On a release
+  # branch it stays red until the date is set; the other jobs show whether the tests pass.
+  changelog:
+    name: changelog is ready for release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v7
+
+      - name: check CHANGELOG.md
+        run: ./tasks.sh changelog
+
   # JUnit tests of common/, type check and Vitest tests of web/.
   quick:
     name: java and web tests
@@ -27,7 +41,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: validate gradle wrapper
         uses: gradle/actions/wrapper-validation@v6
@@ -37,7 +51,7 @@ jobs:
 
       # Only the Minecraft client JAR and language files; a release's full texture cache works too.
       - name: cache minecraft downloads
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: scripts/.cache
           key: mc-lang-${{ hashFiles('gradle.properties', 'scripts/textures/extract_mc_textures.py') }}
@@ -50,7 +64,7 @@ jobs:
 
       - name: attach test report
         if: ${{ failure() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: java-test-report
           path: common/build/reports/tests/test
@@ -67,7 +81,7 @@ jobs:
     timeout-minutes: 45
     steps:
       - name: checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: validate gradle wrapper
         uses: gradle/actions/wrapper-validation@v6
@@ -77,7 +91,7 @@ jobs:
 
       # The client JAR and minecraft.wiki icons (see release.yml) and the smoke test servers with their libraries.
       - name: cache minecraft downloads
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: scripts/.cache
           key: mc-textures-${{ hashFiles('gradle.properties', 'scripts/textures/extract_mc_textures.py') }}
@@ -98,7 +112,7 @@ jobs:
 
       - name: attach logs
         if: ${{ failure() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: integration-logs
           path: |
