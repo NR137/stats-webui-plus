@@ -108,6 +108,9 @@
 		{#if detail.hidden}
 			{' · '}{t('advancements.hidden')}
 		{/if}
+		{#if detail.experience}
+			{' · '}{t('advancements.reward', { xp: detail.experience })}
+		{/if}
 	{/if}
 </p>
 
@@ -178,7 +181,8 @@
 
 	a {
 		display: grid;
-		grid-template-columns: 2.5rem 2.5rem 1fr auto;
+		/* The name keeps room for about ten letters; a long value (a date on phones) wraps instead. */
+		grid-template-columns: 2.5rem 2.5rem minmax(7rem, 1fr) minmax(0, auto);
 		gap: 0.8rem;
 		padding: 0.55rem 0.75rem;
 		align-items: center;
@@ -193,5 +197,13 @@
 	.value {
 		font-variant-numeric: tabular-nums;
 		color: var(--color-accent);
+	}
+
+	/* A player name is no word: never hyphenated or broken, cut off with "…" where it doesn't fit (as on the ranking). */
+	.name {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		hyphens: manual;
 	}
 </style>

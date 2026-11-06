@@ -16,6 +16,8 @@ public final class PlayerRecord {
 	public final Map<String, Map<String, Long>> vanilla;
 	public final Set<String> advancements;
 	public final Map<String, Long> advancementTimes;
+	// Met criteria with their times, for advancements with several criteria (see AdvancementProgressFile.criteria).
+	public final Map<String, Map<String, Long>> advancementCriteria;
 
 	public PlayerRecord(
 		UUID uuid,
@@ -29,6 +31,23 @@ public final class PlayerRecord {
 		Set<String> advancements,
 		Map<String, Long> advancementTimes
 	) {
+		this(uuid, name, playHours, championScore, values, categories, grades, vanilla, advancements, advancementTimes,
+			Map.of());
+	}
+
+	public PlayerRecord(
+		UUID uuid,
+		String name,
+		double playHours,
+		double championScore,
+		Map<String, Double> values,
+		Map<String, Double> categories,
+		Map<String, Double> grades,
+		Map<String, Map<String, Long>> vanilla,
+		Set<String> advancements,
+		Map<String, Long> advancementTimes,
+		Map<String, Map<String, Long>> advancementCriteria
+	) {
 		this.uuid = uuid;
 		this.name = name;
 		this.playHours = playHours;
@@ -40,6 +59,7 @@ public final class PlayerRecord {
 		this.vanilla = vanilla;
 		this.advancements = Set.copyOf(advancements);
 		this.advancementTimes = Map.copyOf(advancementTimes);
+		this.advancementCriteria = Map.copyOf(advancementCriteria);
 	}
 
 	public PlayerRecord withChampion(double score, Map<String, Double> nextGrades) {
@@ -53,7 +73,8 @@ public final class PlayerRecord {
 			nextGrades,
 			vanilla,
 			advancements,
-			advancementTimes
+			advancementTimes,
+			advancementCriteria
 		);
 	}
 
@@ -68,11 +89,16 @@ public final class PlayerRecord {
 			grades,
 			vanilla,
 			advancements,
-			advancementTimes
+			advancementTimes,
+			advancementCriteria
 		);
 	}
 
-	public PlayerRecord withAdvancements(Set<String> nextAdvancements, Map<String, Long> nextTimes) {
+	public PlayerRecord withAdvancements(
+		Set<String> nextAdvancements,
+		Map<String, Long> nextTimes,
+		Map<String, Map<String, Long>> nextCriteria
+	) {
 		return new PlayerRecord(
 			uuid,
 			name,
@@ -83,7 +109,8 @@ public final class PlayerRecord {
 			grades,
 			vanilla,
 			nextAdvancements,
-			nextTimes
+			nextTimes,
+			nextCriteria
 		);
 	}
 
@@ -101,6 +128,11 @@ public final class PlayerRecord {
 
 	public long advancementTime(String id) {
 		return advancementTimes.getOrDefault(id, 0L);
+	}
+
+	/** When each met criterion of an advancement with several criteria was met; empty if none or a single one. */
+	public Map<String, Long> advancementCriteria(String id) {
+		return advancementCriteria.getOrDefault(id, Map.of());
 	}
 
 	public double value(String leaderboardId) {

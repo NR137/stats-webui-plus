@@ -16,7 +16,8 @@ Stats WebUI Plus is a fork of **[mc-stats-webui](https://github.com/borrageiros/
 ## ✨ Features
 
 - 🏆 Home podium with **Champion**, **Most dedicated**, and **Most efficient** crowns
-- 🥇 Vanilla advancements: who has the most, who unlocked a specific one, and a player’s full list, plus a progress bar with tiers from Stone to Netherite (and Dragon Egg at 100 %)
+- 🥇 Vanilla advancements on the game's frames: who has the most, who unlocked a specific one, and a player’s full list, plus a progress bar with tiers from Stone to Netherite (and Dragon Egg at 100 %)
+- 🧭 A player's page per advancement: when it was done, and for advancements with several parts (every biome, every mob, a balanced diet, …) which parts are done, when, and which are still missing
 - 🆚 Side-by-side player compare
 - 🕒 First join and last online time per player, shown in each visitor's own time zone (recorded by the mod; estimated for players from before it was installed)
 - 📊 Leaderboards for the whole vanilla stats catalog (custom, mined, killed, …)

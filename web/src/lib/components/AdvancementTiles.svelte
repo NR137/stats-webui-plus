@@ -6,7 +6,9 @@
 		dim,
 		obtained,
 		showHolders = false,
-		when
+		when,
+		href,
+		progress
 	}: {
 		items: Array<{
 			id: string;
@@ -22,6 +24,10 @@
 		obtained?: (item: { id: string; holders?: number }) => boolean;
 		showHolders?: boolean;
 		when?: (item: { id: string }) => string | undefined;
+		// Where a tile leads; the advancement's own page by default.
+		href?: (item: { id: string }) => string;
+		// E.g. "23 / 56" for an unfinished advancement with several parts.
+		progress?: (item: { id: string }) => string | undefined;
 	} = $props();
 </script>
 
@@ -33,6 +39,8 @@
 			obtained={obtained?.(item) ?? true}
 			{showHolders}
 			when={when?.(item)}
+			href={href?.(item)}
+			progress={progress?.(item)}
 		/>
 	{/each}
 </div>

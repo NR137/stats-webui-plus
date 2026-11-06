@@ -7,6 +7,7 @@ import type {
 	LeaderboardEntry,
 	LeaderboardResponse,
 	LeaderboardsResponse,
+	PlayerAdvancementResponse,
 	PlayerDetail,
 	PlayerStat,
 	PlayerSummary,
@@ -328,6 +329,20 @@ export function getAdvancements() {
 
 export function getAdvancementMost() {
 	return getJson<LeaderboardResponse>('/api/advancements/most');
+}
+
+export function getPlayerAdvancement(name: string, id: string) {
+	return getJson<PlayerAdvancementResponse>(
+		`/api/players/${encodeURIComponent(name)}/advancements/${advancementPath(id)}`
+	);
+}
+
+function advancementPath(id: string): string {
+	return id
+		.replace(':', '/')
+		.split('/')
+		.map((part) => encodeURIComponent(part))
+		.join('/');
 }
 
 export function getAdvancement(id: string) {

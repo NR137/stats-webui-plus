@@ -67,6 +67,73 @@ public final class AdvancementService {
 		return body;
 	}
 
+	/**
+	 * One player's progress on one advancement: whether and when it was done, and its requirements as Minecraft keeps
+	 * them, each a list of criteria with the time it was met (0 if not yet). A requirement is met by any of its
+	 * criteria; the advancement once all requirements are met.
+	 */
+	public static Map<String, Object> playerDetailPayload(AdvancementInfo info, PlayerRecord player, List<PlayerRecord> players) {
+		Map<String, Object> body = infoPayload(info);
+		body.put("holders", holders(info.id(), players).size());
+		body.put("player", player.name);
+		body.put("uuid", player.uuid.toString());
+		boolean done = player.hasAdvancement(info.id());
+		body.put("done", done);
+		body.put("obtainedAt", player.advancementTime(info.id()));
+		Map<String, Long> met = player.advancementCriteria(info.id());
+		List<List<Map<String, Object>>> requirements = new ArrayList<>();
+		for (List<String> requirement : requirements(info.id(), met)) {
+			List<Map<String, Object>> group = new ArrayList<>();
+			for (String criterion : requirement) {
+				long at = met.getOrDefault(criterion, 0L);
+				// A single criterion isn't kept separately: it was met when the advancement was done.
+				if (at == 0 && done && requirement.size() == 1 && met.isEmpty()) {
+					at = player.advancementTime(info.id());
+				}
+				Map<String, Object> item = new LinkedHashMap<>();
+				item.put("criterion", criterion);
+				item.put("at", at);
+				group.add(item);
+			}
+			requirements.add(group);
+		}
+		body.put("requirements", requirements);
+		return body;
+	}
+
+	/** Requirements met / all requirements, for a player's unfinished advancements with more than one requirement. */
+	public static Map<String, Object> progressPayload(PlayerRecord player) {
+		Map<String, Object> body = new LinkedHashMap<>();
+		for (AdvancementInfo info : AdvancementCatalog.get().all()) {
+			List<List<String>> requirements = AdvancementCatalog.get().requirements(info.id());
+			if (requirements == null || requirements.size() < 2 || player.hasAdvancement(info.id())) {
+				continue;
+			}
+			Map<String, Long> met = player.advancementCriteria(info.id());
+			int count = 0;
+			for (List<String> requirement : requirements) {
+				if (requirement.stream().anyMatch(met::containsKey)) {
+					count += 1;
+				}
+			}
+			body.put(info.id(), Map.of("done", count, "total", requirements.size()));
+		}
+		return body;
+	}
+
+	/** The catalog's requirements; for an unknown one, each recorded criterion as a requirement of its own. */
+	private static List<List<String>> requirements(String id, Map<String, Long> met) {
+		List<List<String>> requirements = AdvancementCatalog.get().requirements(id);
+		if (requirements != null && !requirements.isEmpty()) {
+			return requirements;
+		}
+		List<List<String>> own = new ArrayList<>();
+		for (String criterion : met.keySet()) {
+			own.add(List.of(criterion));
+		}
+		return own;
+	}
+
 	private static Map<String, Object> infoPayload(AdvancementInfo info) {
 		Map<String, Object> item = new LinkedHashMap<>();
 		item.put("id", info.id());
@@ -76,6 +143,7 @@ public final class AdvancementService {
 		item.put("icon", info.icon());
 		item.put("frame", info.frame());
 		item.put("hidden", info.hidden());
+		item.put("experience", info.experience());
 		return item;
 	}
 

@@ -14,8 +14,10 @@ html[data-theme='dark'] {
 	--color-muted: #a0a0a0;
 	--color-text: #e0e0e0;
 	--color-accent: #55ff55;
-	/* Challenges, purple like the game's chat announces them. */
-	--color-challenge: #e05ce0;
+	/* Advancement titles in the colours of the game's notifications: yellow ("Advancement Made!", "Goal Reached!"),
+	   pink for challenges ("Challenge Complete!"). */
+	--color-advancement: #ffff00;
+	--color-challenge: #ff88ff;
 	--color-gold: #ffff55;
 	/* Minecraft's splash text yellow and its shadow (a quarter of the brightness). */
 	--color-splash: #ffff00;
@@ -23,6 +25,8 @@ html[data-theme='dark'] {
 	--color-hover: #ffffa0;
 	--color-border: #000000;
 	--color-card: #00000099;
+	/* Tooltips: opaque, so the text is easy to read over anything (the card colour over the dirt). */
+	--color-tooltip: #120c08;
 	--color-shadow: #3f3f3f;
 	--color-overlay: #0000008f;
 	--dirt-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' shape-rendering='crispEdges'%3E%3Cpath fill='%235c3d24' d='M0 0h8v8H0z'/%3E%3Cpath fill='%234a301b' d='M0 0h4v4H0zm4 4h4v4H4z'/%3E%3Cpath fill='%236b4a2e' d='M4 0h2v2H4zm0 6h4v2H4zM0 4h2v2H0z'/%3E%3Cpath fill='%233a2414' d='M6 2h2v2H6zM2 6h2v2H2z'/%3E%3C/svg%3E");
@@ -52,7 +56,9 @@ html[data-theme='light'] {
 	--color-muted: #6b5428;
 	--color-text: #3f2a14;
 	--color-accent: #2d6a1e;
-	--color-challenge: #7e1f7e;
+	/* Advancement tiles stay dark in the light theme (AdvancementTile), with the game's colours. */
+	--color-advancement: #ffff00;
+	--color-challenge: #ff88ff;
 	--color-gold: #aa7f00;
 	/* Pure yellow is unreadable on the light background; a dark gold stands out from it. */
 	--color-splash: #6e4a00;
@@ -60,6 +66,7 @@ html[data-theme='light'] {
 	--color-hover: #5a3c00;
 	--color-border: #3f2a14;
 	--color-card: #f0e2b8d9;
+	--color-tooltip: #efe0b4;
 	--color-shadow: #e8d9b0;
 	--color-overlay: #e8d4a38a;
 	--dirt-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' shape-rendering='crispEdges'%3E%3Cpath fill='%23d4b57a' d='M0 0h8v8H0z'/%3E%3Cpath fill='%23c4a36a' d='M0 0h4v4H0zm4 4h4v4H4z'/%3E%3Cpath fill='%23e0c58a' d='M4 0h2v2H4zm0 6h4v2H4zM0 4h2v2H0z'/%3E%3Cpath fill='%23b8935c' d='M6 2h2v2H6zM2 6h2v2H2z'/%3E%3C/svg%3E");
@@ -148,6 +155,14 @@ td {
 	hyphens: auto;
 	hyphenate-limit-chars: 12 5 5;
 	overflow-wrap: break-word;
+}
+
+/* Labels in tiles (advancement titles, stat names, an advancement's parts) are narrow: with 5 letters on each side,
+   long words like "Scharfschützenduell" had no break point that fits, and broke anywhere without a hyphen. There, 10+
+   letters with 4 before and 3 after the hyphen. */
+.tile .label,
+.part .label {
+	hyphenate-limit-chars: 10 4 3;
 }
 
 button,

@@ -85,7 +85,7 @@
 		line-height: 1.35;
 		text-align: left;
 		text-shadow: var(--text-shadow);
-		background: var(--color-card);
+		background: var(--color-tooltip);
 		border: 2px solid var(--color-border);
 		box-shadow: inset 0 0 0 2px var(--button-shadow);
 		opacity: 0;

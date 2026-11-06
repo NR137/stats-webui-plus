@@ -765,6 +765,66 @@ def named_advancement_icons(jar: zipfile.ZipFile, lang: dict[str, str]) -> dict[
 	return icons
 
 
+def killed_player_face(jar: zipfile.ZipFile) -> str | None:
+	"""Steve's face (with his hat layer) at 16x16, the eyes covered with skin and crossed out like a cartoon knockout.
+	Returns its URL, or None without the skin."""
+	try:
+		skin = decode_png(jar.read("assets/minecraft/textures/entity/player/wide/steve.png"))
+	except KeyError:
+		return None
+	if not skin:
+		return None
+	face = [[skin[8 + y][40 + x] if skin[8 + y][40 + x][3] else skin[8 + y][8 + x] for x in range(8)] for y in range(8)]
+	pixels = [[face[y // 2][x // 2] for x in range(16)] for y in range(16)]
+	cross = (24, 24, 24, 255)
+	# Steve's eyes are face row 4, columns 1-2 and 5-6: rows 8-9, columns 2-5 and 10-13 at 16x16.
+	for left in (2, 10):
+		for y in (8, 9):
+			for x in range(left, left + 4):
+				pixels[y][x] = pixels[11][x]
+		for i in range(4):
+			pixels[7 + i][left + i] = cross
+			pixels[7 + i][left + 3 - i] = cross
+	url = "/mc/special/player_killed.png"
+	write_png(static_path(url), pixels)
+	return url
+
+
+# Structures with a small sprite on the wiki that advancement criteria refer to (EnvSprite_<name>.png).
+STRUCTURE_SPRITES = (
+	"bastion-remnant",
+	"creaking-heart-pale-oak",
+	"desert-pyramid",
+	"desert-well",
+	"ocean-ruin",
+	"trail-ruins",
+	"warm-ocean-ruins",
+)
+
+
+# Variants whose wiki sprite isn't "<variant>-<mob>": the default ones, and the cats the wiki names differently.
+VARIANT_SPRITES = {
+	("cat", "black"): "cat",
+	("cat", "all_black"): "black-cat",
+	("cat", "jellie"): "jellie",
+	("wolf", "pale"): "wolf",
+	("frog", "temperate"): "frog",
+}
+
+
+def variant_sprites(jar: zipfile.ZipFile) -> list[tuple[str, str, str]]:
+	"""(mob, variant, wiki sprite name) for every cat, wolf and frog variant in the game's data."""
+	found = []
+	for mob in ("cat", "wolf", "frog"):
+		folder = f"data/minecraft/{mob}_variant/"
+		for entry in sorted(jar.namelist()):
+			if entry.startswith(folder) and entry.endswith(".json"):
+				variant = Path(entry).stem
+				sprite = VARIANT_SPRITES.get((mob, variant), f"{variant.replace('_', '-')}-{mob}")
+				found.append((mob, variant, sprite))
+	return found
+
+
 def invicon_filenames(item_id: str, lang: dict[str, str]) -> list[str]:
 	return ["Invicon_" + title.replace(" ", "_") + ".png" for title in invicon_titles(item_id, lang)]
 
@@ -1368,6 +1428,31 @@ def main() -> None:
 				icon = (sprites.get(target) or icons.get(f"minecraft:{target}")) if target else None
 			if icon:
 				icons[f"entity:minecraft:{entity}"] = icon
+		# Cat, wolf and frog variants (for advancements like A Complete Catalogue): the wiki's sprite of each, under
+		# "variant:<mob>:<variant id>". The default variants are the plain sprites (the tuxedo cat is the wiki's "cat").
+		variants = {
+			f"variant:{mob}:minecraft:{variant}": (f"{mob}_{variant}", [f"EntitySprite_{sprite}.png"])
+			for mob, variant, sprite in variant_sprites(jar)
+		}
+		icons.update(download_wiki_images("variant sprites", mob_cache, "mob", variants))
+		# Biomes (Adventuring Time) and structures (Respecting the Remnants, ...): the wiki's small sprites, under
+		# "biome:<id>" and "structure:<name>". Biomes without a sprite on the wiki (404) simply have none.
+		lang_biomes = sorted(
+			key.removeprefix("biome.minecraft.") for key in en_us if key.startswith("biome.minecraft.") and key.count(".") == 2
+		)
+		biomes = {
+			f"biome:minecraft:{biome}": (f"biome_{biome}", [f"BiomeSprite_{biome.replace('_', '-')}.png"])
+			for biome in lang_biomes
+		}
+		icons.update(download_wiki_images("biome sprites", mob_cache, "mob", biomes))
+		# Adventure's "killed by something": Steve's face with crossed-out eyes, so it doesn't read as a killed mob.
+		killed_face = killed_player_face(jar)
+		if killed_face:
+			icons["special:player-killed"] = killed_face
+		structures = {
+			f"structure:{name}": (f"structure_{name.replace('-', '_')}", [f"EnvSprite_{name}.png"]) for name in STRUCTURE_SPRITES
+		}
+		icons.update(download_wiki_images("structure sprites", mob_cache, "mob", structures))
 		if "entity:minecraft:player" not in icons and "minecraft:player_head" in icons:
 			icons["entity:minecraft:player"] = icons["minecraft:player_head"]
 		for entry in jar.namelist():
@@ -1415,7 +1500,8 @@ def write_advancement_lang(jar: zipfile.ZipFile, version: str) -> None:
 
 
 def write_name_lang(jar: zipfile.ZipFile, version: str) -> None:
-	"""Official block, item and entity names per language, for stat labels in the web UI (/mc/lang/<locale>.json).
+	"""Official block, item, entity and biome names per language, for stat labels and advancement criteria in the web
+	UI (/mc/lang/<locale>.json).
 	Kept out of the JS bundle and fetched for the visitor's language only."""
 	items = sorted(Path(n).stem for n in jar.namelist() if n.startswith("assets/minecraft/items/") and n.endswith(".json"))
 	blocks = sorted(
@@ -1423,7 +1509,7 @@ def write_name_lang(jar: zipfile.ZipFile, version: str) -> None:
 	)
 	for locale, path in LANG_FILES.items():
 		lang = load_lang(jar, version, path)
-		names: dict[str, dict[str, str]] = {"item": {}, "block": {}, "entity": {}}
+		names: dict[str, dict[str, str]] = {"item": {}, "block": {}, "entity": {}, "biome": {}, "trim": {}}
 		for name in items:
 			# Block items (stone, oak_planks, ...) only have a block.* name.
 			value = lang.get(f"item.minecraft.{name}") or lang.get(f"block.minecraft.{name}")
@@ -1436,10 +1522,15 @@ def write_name_lang(jar: zipfile.ZipFile, version: str) -> None:
 		for key, value in lang.items():
 			if key.startswith("entity.minecraft.") and key.count(".") == 2 and isinstance(value, str):
 				names["entity"]["minecraft:" + key.removeprefix("entity.minecraft.")] = value
+			elif key.startswith("biome.minecraft.") and key.count(".") == 2 and isinstance(value, str):
+				names["biome"]["minecraft:" + key.removeprefix("biome.minecraft.")] = value
+			elif key.startswith("trim_pattern.minecraft.") and key.count(".") == 2 and isinstance(value, str):
+				# Every template item is just "Smithing Template"; the pattern has the name ("Silence Armor Trim").
+				names["trim"]["minecraft:" + key.removeprefix("trim_pattern.minecraft.")] = value
 		out = STATIC / "lang" / f"{locale}.json"
 		out.parent.mkdir(parents=True, exist_ok=True)
 		out.write_text(json.dumps(names, ensure_ascii=False, sort_keys=True, separators=(",", ":")), encoding="utf-8")
-	print(f"Wrote block/item/entity names for {', '.join(LANG_FILES)} to {STATIC / 'lang'}")
+	print(f"Wrote block/item/entity/biome/trim names for {', '.join(LANG_FILES)} to {STATIC / 'lang'}")
 
 
 if __name__ == "__main__":

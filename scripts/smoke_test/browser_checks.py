@@ -22,6 +22,7 @@ def run(base: str, names: list[str], check) -> None:
 			_ui_checks(browser, base, names, check)
 			_menu_checks(browser, base, names, check)
 			_advancement_checks(browser, base, names, check)
+			_player_advancement_checks(browser, base, names, check)
 		finally:
 			browser.close()
 
@@ -293,7 +294,8 @@ def _advancement_checks(browser, base: str, names: list[str], check) -> None:
 		const catalog = await (await fetch('/api/advancements')).json();
 		const frames = Object.fromEntries(catalog.advancements.map((item) => [item.id, item.frame]));
 		return [...document.querySelectorAll('.tile')].map((tile) => {
-			const id = decodeURIComponent(new URL(tile.href).pathname.replace('/advancements/', ''))
+			// The advancement's own page or the player's page for it: the ID is what follows /advancements/.
+			const id = decodeURIComponent(new URL(tile.href).pathname.replace(/^.*\\/advancements\\//, ''))
 				.replace('/', ':');
 			const image = getComputedStyle(tile.querySelector('.advancement-icon')).backgroundImage;
 			return { id, frame: frames[id], image, done: Boolean(tile.querySelector('.when')),
@@ -305,10 +307,14 @@ def _advancement_checks(browser, base: str, names: list[str], check) -> None:
 	wrong_colour = [tile['id'] for tile in tiles if ('_frame_obtained' in tile['image']) != tile['done']]
 	check(any(tile['done'] for tile in tiles) and any(not tile['done'] for tile in tiles) and not wrong_colour,
 		f'the frame is gold exactly for the player\'s finished advancements (wrong: {wrong_colour[:3]})')
-	colours = {kind: {tile['color'] for tile in tiles if (tile['frame'] == 'challenge') == (kind == 'challenge')}
+	done = [tile for tile in tiles if tile['done']]
+	colours = {kind: {tile['color'] for tile in done if (tile['frame'] == 'challenge') == (kind == 'challenge')}
 		for kind in ('challenge', 'other')}
+	grey = {tile['color'] for tile in tiles if not tile['done']}
 	check(len(colours['challenge']) == 1 and len(colours['other']) == 1 and colours['challenge'] != colours['other'],
-		f'challenge titles have one colour, task and goal titles another ({colours})')
+		f'obtained challenge titles have one colour, task and goal titles another ({colours})')
+	check(len(grey) == 1 and not grey & (colours['challenge'] | colours['other']),
+		f'titles of advancements the player lacks are grey ({grey})')
 	frame_files = page.evaluate("""async () => Promise.all(['task', 'goal', 'challenge'].flatMap((shape) =>
 		['obtained', 'unobtained'].map(async (state) => {
 			const response = await fetch(`/mc/advancement/${shape}_frame_${state}.png`);
@@ -321,4 +327,88 @@ def _advancement_checks(browser, base: str, names: list[str], check) -> None:
 	check('ominous_banner' in (page.locator('.advancement-icon img').first.get_attribute('src') or ''),
 		'Voluntary Exile shows the Ominous Banner')
 	check(not errors, f'no JavaScript errors on the advancement pages ({"; ".join(errors[:3]) or "none"})')
+	page.context.close()
+
+
+def _player_advancement_checks(browser, base: str, names: list[str], check) -> None:
+	"""CHANGELOG 1.4.0: every advancement on a player's page leads to the player's own page for it: when it was done,
+	and for advancements with several parts which are done (with dates) and which are missing, by name."""
+	page, errors = _page(browser)
+	# A player with an unfinished advancement with several parts (the sample data gives everyone one).
+	found = None
+	for name in names:
+		progress = page.request.get(f'{base}/api/players/{quote(name, safe="")}').json()['advancements'].get('progress', {})
+		started = {key: value for key, value in progress.items() if value['done'] > 0}
+		if started:
+			found = (name, *next(iter(started.items())))
+			break
+	check(found is not None, 'the API reports progress for unfinished advancements with several parts')
+	if found is None:
+		page.context.close()
+		return
+	name, advancement, progress = found
+	tab = f'{base}/players/{quote(name, safe="")}/advancements'
+	page.goto(tab)
+	page.locator('.tile').first.wait_for()
+	hrefs = page.evaluate("[...document.querySelectorAll('.tile')].map((tile) => tile.getAttribute('href'))")
+	prefix = f'/players/{quote(name, safe="")}/advancements/'
+	check(hrefs and all(href.startswith(prefix) for href in hrefs),
+		f'the advancements tab still lists the tiles, and each leads to the player\'s own page ({len(hrefs)} tiles)')
+	path = advancement.replace(':', '/', 1)
+	tile = page.locator(f'.tile[href="{prefix}{path}"]')
+	counter = f"{progress['done']} / {progress['total']}"
+	check(counter in tile.inner_text(), f'the tile of {advancement} shows its progress {counter}')
+
+	tile.click()
+	page.wait_for_url(re.compile(re.escape(path) + '$'))
+	page.locator('.part').first.wait_for()
+	check(_shows(page, f"{progress['done']} of {progress['total']} done"), 'the player\'s page shows the same progress')
+	parts = page.evaluate("""() => [...document.querySelectorAll('.parts')].map((section) => ({
+		dated: section.querySelectorAll('.part .when').length,
+		labels: [...section.querySelectorAll('.part .label')].map((label) => label.textContent.trim())
+	}))""")
+	labels = [label for section in parts for label in section['labels']]
+	check(len(parts) == 2 and parts[0]['dated'] == progress['done'] == len(parts[0]['labels'])
+		and len(labels) == progress['total'],
+		f'done parts are listed with their dates, missing ones without ({[len(s["labels"]) for s in parts]})')
+	check(labels and not any(':' in label or '_' in label for label in labels),
+		f'parts have names, not IDs ({labels[:4]})')
+	page.go_back()
+	page.wait_for_url(tab)
+	page.locator('.tile').first.wait_for()
+	check(page.locator('.tile').count() == len(hrefs), 'Back returns to the advancements tab')
+
+	# A finished single-step advancement says when; variants the game has no names for are named in German.
+	page.goto(f'{base}/players/{quote(names[0], safe="")}/advancements/minecraft/story/mine_stone')
+	check(_shows(page, 'Done:'), 'a finished single-step advancement shows when it was done')
+	german, _ = _page(browser, locale='de-DE')
+	german.goto(f'{base}/players/{quote(names[0], safe="")}/advancements/minecraft/husbandry/complete_catalogue')
+	check(_shows(german, 'Panther') and _shows(german, 'Britisch-Kurzhaar'), 'cat variants are named in German')
+	german.context.close()
+	# Every advancement with several parts: no two parts with the same name (all smithing templates are called
+	# "Smithing Template" in the game), each with an icon, and none named by its raw ID.
+	catalog = page.request.get(f'{base}/api/advancements').json()['advancements']
+	player_base = f'{base}/players/{quote(names[0], safe="")}/advancements/'
+	problems = []
+	pages = 0
+	for advancement in catalog:
+		path = advancement['id'].replace(':', '/', 1)
+		requirements = page.request.get(f'{base}/api/players/{quote(names[0], safe="")}/advancements/{path}').json()['requirements']
+		if len(requirements) < 2 and len(requirements[0]) < 2:
+			continue
+		pages += 1
+		page.goto(player_base + path)
+		page.locator('.part').first.wait_for()
+		shown = page.evaluate("""() => [...document.querySelectorAll('.part')].map((part) => ({
+			label: part.querySelector('.label').textContent.trim(), icon: Boolean(part.querySelector('img'))
+		}))""")
+		labels = [part['label'] for part in shown]
+		if len(set(labels)) != len(labels) or not all(part['icon'] for part in shown) \
+				or any(re.search(r'[_:]', label) for label in labels):
+			problems.append(f"{advancement['id']}: {labels[:6]}")
+	check(pages > 0 and not problems,
+		f'parts of all {pages} advancements with several have their own name and an icon ({problems[:2]})')
+	page.goto(f'{base}/players/{quote(names[0], safe="")}/advancements/minecraft/no/such_thing')
+	check(_shows(page, 'This advancement does not exist.'), 'an unknown advancement on a player\'s page says so')
+	check(not errors, f'no JavaScript errors on players\' advancement pages ({"; ".join(errors[:3]) or "none"})')
 	page.context.close()

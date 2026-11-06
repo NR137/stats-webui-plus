@@ -32,7 +32,7 @@ SHOTS = [
 	("how-we-rank", "/about", "en-US", "dark", DESKTOP),
 	("ranking-light", "/", "en-US", "light", DESKTOP),
 	("player-de", "/players/CompassCora", "de-DE", "dark", DESKTOP),
-	("player-es", "/players/CreeperBaneKat", "es-ES", "dark", DESKTOP),
+	("player-es", "/players/CreeperBaneKatie", "es-ES", "dark", DESKTOP),
 	("player-fr", "/players/BlockSmithBea", "fr-FR", "dark", DESKTOP),
 	("mobile-ranking", "/", "en-US", "dark", MOBILE),
 	("mobile-player", "/players/NetherNomadNix", "en-US", "dark", MOBILE),

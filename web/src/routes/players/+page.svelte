@@ -365,4 +365,12 @@
 			padding-right: 0.4rem;
 		}
 	}
+
+	/* The table scrolls sideways on phones; a long name (up to 16 characters) ends in "…" there instead of widening
+	   the name column and pushing the numbers further out. */
+	@media (max-width: 640px) {
+		.name {
+			max-width: 10rem;
+		}
+	}
 </style>

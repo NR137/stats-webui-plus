@@ -54,6 +54,11 @@ export function advancementIcon(id: string, icon: string): string {
 	return hasIcon(own) ? own : icon;
 }
 
+/** A player's own page for an advancement: their progress on it. */
+export function playerAdvancementHref(name: string, id: string) {
+	return `/players/${encodeURIComponent(name)}${advancementHref(id)}`;
+}
+
 export function advancementHref(id: string) {
 	return `/advancements/${id
 		.replace(':', '/')

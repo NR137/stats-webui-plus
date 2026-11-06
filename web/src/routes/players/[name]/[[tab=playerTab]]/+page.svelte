@@ -10,7 +10,12 @@
 	import SearchField from '$lib/components/SearchField.svelte';
 	import Tabs from '$lib/components/Tabs.svelte';
 	import Tooltip from '$lib/components/Tooltip.svelte';
-	import { advancementTabTitle, compareAdvancementTitles, matchesAdvancementQuery } from '$lib/advancements';
+	import {
+		advancementTabTitle,
+		compareAdvancementTitles,
+		matchesAdvancementQuery,
+		playerAdvancementHref
+	} from '$lib/advancements';
 	import { NotFoundError, getAdvancements, getLeaderboards, getPlayerProfile } from '$lib/api';
 	import { boardHint, formatRelative, formatWhen, i18n, pageTitle, t, tDynamic } from '$lib/i18n/i18n.svelte';
 	import type { MessageKey } from '$lib/i18n/messages/es';
@@ -384,6 +389,11 @@
 							dim={(item) => !doneIds.has(item.id)}
 							obtained={(item) => doneIds.has(item.id)}
 							when={(item) => (doneTimes[item.id] ? formatWhen(doneTimes[item.id]) : undefined)}
+							href={(item) => playerAdvancementHref(player?.name ?? playerName ?? '', item.id)}
+							progress={(item) => {
+								const part = player?.advancements?.progress?.[item.id];
+								return part ? `${part.done} / ${part.total}` : undefined;
+							}}
 						/>
 					{/if}
 				</section>
@@ -526,9 +536,15 @@
 	}
 
 	.page-title {
-		/* Same look whether this is the page's h1 or an h2 below the site heading. */
-		font-size: 2rem;
+		/* Same look whether this is the page's h1 or an h2 below the site heading. Smaller on phones, so the longest
+		   name Minecraft allows (16 characters) fits next to the head; a name is never hyphenated or broken. */
+		font-size: clamp(1.25rem, 6.5vw, 2rem);
 		margin: 0;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		hyphens: manual;
 	}
 
 	.scoreline {

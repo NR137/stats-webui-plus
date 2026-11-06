@@ -99,7 +99,9 @@ public final class StatsService {
 		if (advancements != null) {
 			return withAdvancements(player, advancements);
 		}
-		return previous == null ? player : player.withAdvancements(previous.advancements, previous.advancementTimes);
+		return previous == null
+			? player
+			: player.withAdvancements(previous.advancements, previous.advancementTimes, previous.advancementCriteria);
 	}
 
 	public static Path statsDirectory(Path worldRoot) {
@@ -167,7 +169,13 @@ public final class StatsService {
 				times.put(id, at);
 			}
 		}
-		return player.withAdvancements(done, times);
+		Map<String, Map<String, Long>> criteria = new LinkedHashMap<>();
+		for (Map.Entry<String, Map<String, Long>> entry : progress.criteria.entrySet()) {
+			if (known.isEmpty() || known.contains(entry.getKey())) {
+				criteria.put(entry.getKey(), entry.getValue());
+			}
+		}
+		return player.withAdvancements(done, times, criteria);
 	}
 
 	/** Whether Minecraft has saved stats for this player before, i.e. this is not their first join. */
@@ -320,6 +328,7 @@ public final class StatsService {
 			}
 		}
 		body.put("times", times);
+		body.put("progress", AdvancementService.progressPayload(player));
 		return body;
 	}
 

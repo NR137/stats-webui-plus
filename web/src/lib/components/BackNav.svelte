@@ -12,14 +12,18 @@
 		fromPath = from?.url ? `${from.url.pathname}${from.url.search}` : null;
 	});
 
+	// A player's own advancement page goes back to their advancements.
+	const playerAdvancements = $derived(page.url.pathname.match(/^(\/players\/[^/]+\/advancements)\/.+/)?.[1]);
 	const fallbackPath = $derived(
-		/^\/leaderboards\/.+/.test(page.url.pathname)
-			? '/leaderboards'
-			: /^\/advancements\/.+/.test(page.url.pathname)
-				? '/advancements'
-				: /^\/players\/.+/.test(page.url.pathname)
-					? '/players'
-					: '/'
+		playerAdvancements
+			? playerAdvancements
+			: /^\/leaderboards\/.+/.test(page.url.pathname)
+				? '/leaderboards'
+				: /^\/advancements\/.+/.test(page.url.pathname)
+					? '/advancements'
+					: /^\/players\/.+/.test(page.url.pathname)
+						? '/players'
+						: '/'
 	);
 	const href = $derived(fromPath ?? fallbackPath);
 	const label = $derived(t('nav.back'));

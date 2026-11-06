@@ -5,6 +5,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [1.4.0] - unreleased
 
+### Added
+
+- **A player's page for each advancement** (`/players/<name>/advancements/<id>`): when it was done, and for
+  advancements with several parts which parts are done (with the date of each) and which are still missing, e.g. the
+  biomes of Adventuring Time, the mobs of Monsters Hunted or the foods of A Balanced Diet. For "any one of these"
+  advancements it shows the choices. The tiles on a player's advancements tab now lead there (it links on to the
+  advancement's page with all players), and unfinished advancements with several parts show their progress
+  ("30 / 56").
+  - Parts are named in the visitor's language: biomes, mobs, foods and armor trims (by their pattern, as every
+    template is just "Smithing Template") with Minecraft's own names. Cat, wolf and frog variants and the sites of
+    Respecting the Remnants have no names in the game, which never shows them; they are named as on minecraft.wiki in
+    each language. Criteria that are Mojang's own words (War Pigs' chests, Heart Transplanter, Oh Shiny, ...) are
+    named by hand around the game's names.
+  - Every part has an icon: items and mob faces as elsewhere, and from minecraft.wiki each biome's, each cat, wolf
+    and frog variant's and the structures' small sprites (the texture script downloads them).
+  - The mod keeps when each part was met, from the progress Minecraft saves and holds in memory, for advancements with
+    more than one part only. API: `/api/players/<name>/advancements/<namespace>/<path>`, and `advancements.progress`
+    in `/api/players/<name>`.
+
 ### Changed
 
 #### Advancements
@@ -16,8 +35,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Bigger text in tiles:** advancement titles and stat names are 14px instead of about 11.5px, dates, ranks and
   counts 12px, and stat values 18px; the tiles are a little wider for it. This applies to advancements, a player's
   stats and the leaderboards overview.
-- **Titles are coloured like the game's chat announces them:** challenges purple, tasks and goals green. The date and
-  the number of players under them are no longer green.
+- **Titles are coloured like the game's notifications:** challenges pink ("Challenge Complete!"), tasks and goals
+  yellow. On a player's page, advancements they lack have grey titles. In the light theme advancement tiles stay
+  dark, so the titles keep the game's colours. The date and the number of players under them
+  are no longer green.
+- **An advancement's experience reward** is shown on its page ("Reward: 100 XP").
 
 #### Menu
 
@@ -45,6 +67,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Fixed
 
 #### Web UI
+
+- **Player names are never hyphenated or broken** (on phones, lists of an advancement or leaderboard showed e.g.
+  "Nether-NomadNi-x"); where a name doesn't fit it ends in "…", as on the ranking. A player's page fits even the
+  longest name Minecraft allows (16 characters) next to the head on a phone.
+- Long words in tiles (e.g. "Scharfschützenduell", "Diamantspitzhacke") broke anywhere without a hyphen; there they
+  are now hyphenated from 10 letters on.
+- Tooltips are opaque, so they are easier to read.
 
 - Voluntary Exile and Hero of the Village show the Ominous Banner, as in the game, instead of a white banner. The
   texture script takes such specially named icons from minecraft.wiki.

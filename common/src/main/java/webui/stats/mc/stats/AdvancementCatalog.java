@@ -86,7 +86,8 @@ public final class AdvancementCatalog {
 						plain(info.description()),
 						itemId(info.icon()),
 						frame(info.type()),
-						info.hidden()
+						info.hidden(),
+						holder.value().rewards().experience()
 					)
 				);
 			}

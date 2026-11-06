@@ -1,8 +1,8 @@
 import type { Locale } from '$lib/i18n/locales';
 
-// Official Minecraft block/item/entity names per language, written by scripts/textures/extract_mc_textures.py to
+// Official Minecraft block/item/entity/biome names per language, written by scripts/textures/extract_mc_textures.py to
 // static/mc/lang/<locale>.json. Loaded on demand for the current language only (each file is ~150 KB).
-export type NameKind = 'item' | 'block' | 'entity';
+export type NameKind = 'item' | 'block' | 'entity' | 'biome' | 'trim';
 
 type NameFile = Record<NameKind, Record<string, string>>;
 

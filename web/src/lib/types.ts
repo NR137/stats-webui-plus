@@ -48,6 +48,8 @@ export type PlayerDetail = PlayerSummary & {
 		ids: string[];
 		// Completion time per finished advancement (epoch ms), where Minecraft recorded one.
 		times?: Record<string, number>;
+		// Requirements met of all, for unfinished advancements with several requirements (Adventuring Time, ...).
+		progress?: Record<string, { done: number; total: number }>;
 	};
 };
 
@@ -165,6 +167,8 @@ export type AdvancementInfo = {
 	icon: string;
 	frame: string;
 	hidden: boolean;
+	// Experience points the game gives for it; 0 for none.
+	experience?: number;
 	holders: number;
 };
 
@@ -178,6 +182,17 @@ export type AdvancementsCatalogResponse = {
 	total: number;
 	tabs: AdvancementTab[];
 	advancements: AdvancementInfo[];
+};
+
+// One player's progress on one advancement (/api/players/<name>/advancements/<id>).
+export type PlayerAdvancementResponse = AdvancementInfo & {
+	player: string;
+	uuid: string;
+	done: boolean;
+	// Epoch ms; 0 if not done or unknown.
+	obtainedAt: number;
+	// As Minecraft keeps them: each requirement is met by any one of its criteria (at > 0 when met).
+	requirements: { criterion: string; at: number }[][];
 };
 
 export type AdvancementDetailResponse = AdvancementInfo & {

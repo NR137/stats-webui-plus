@@ -20,7 +20,7 @@ All of them run in the dev image (`docker/Dockerfile`, see the main README), who
    ```
    docker compose up server
    ```
-3. Write the sample players (stats, advancements and session times for nine play styles, each with a different default skin) and point the config at the screenshot setup: port 25590, the address `play.example.com`, Map and Discord buttons with example links.
+3. Write the sample players (stats, advancements and session times for nine play styles, each with a different default skin; one name has the maximum of 16 characters) and point the config at the screenshot setup: port 25590, the address `play.example.com`, Map and Discord buttons with example links.
    ```
    docker compose run --rm dev python scripts/sample_data/sample_data.py
    ```

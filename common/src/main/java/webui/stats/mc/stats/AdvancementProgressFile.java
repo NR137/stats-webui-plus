@@ -36,21 +36,50 @@ public final class AdvancementProgressFile {
 	// Oldest timestamp of any criterion, finished or not, recipes included; 0 if there is none.
 	// Players unlock recipes within their first minutes, so this approximates when they first joined.
 	public final long firstActivityAt;
+	// When each met criterion was met, for advancements with more than one criterion only (Adventuring Time's biomes,
+	// Monsters Hunted's mobs, ...), finished or not: what a player's advancement page lists as done and missing. Single
+	// criterion advancements are covered by obtainedAt, and recipes are left out, so this stays small.
+	public final Map<String, Map<String, Long>> criteria;
 
 	public AdvancementProgressFile(Set<String> done, Map<String, Long> obtainedAt, long firstActivityAt) {
+		this(done, obtainedAt, firstActivityAt, Map.of());
+	}
+
+	public AdvancementProgressFile(
+		Set<String> done,
+		Map<String, Long> obtainedAt,
+		long firstActivityAt,
+		Map<String, Map<String, Long>> criteria
+	) {
 		this.done = Set.copyOf(done);
 		this.obtainedAt = Map.copyOf(obtainedAt);
 		this.firstActivityAt = firstActivityAt;
+		Map<String, Map<String, Long>> copy = new LinkedHashMap<>();
+		criteria.forEach((id, times) -> copy.put(id, Map.copyOf(times)));
+		this.criteria = Map.copyOf(copy);
 	}
 
 	public static AdvancementProgressFile empty() {
 		return new AdvancementProgressFile(Set.of(), Map.of(), 0);
 	}
 
+	/** Whether an advancement's criteria are kept: it has several (by its requirements, or by the file if unknown). */
+	static boolean keepsCriteria(List<List<String>> requirements, Map<String, Long> times) {
+		if (requirements == null) {
+			return times.size() > 1;
+		}
+		int count = 0;
+		for (List<String> requirement : requirements) {
+			count += requirement.size();
+		}
+		return count > 1;
+	}
+
 	/** The same summary from the progress Minecraft holds in memory. Server thread only, where the progress changes. */
 	public static AdvancementProgressFile of(Map<AdvancementHolder, AdvancementProgress> progress) {
 		Set<String> done = new LinkedHashSet<>();
 		Map<String, Long> obtainedAt = new LinkedHashMap<>();
+		Map<String, Map<String, Long>> criteria = new LinkedHashMap<>();
 		long firstActivityAt = 0;
 		for (Map.Entry<AdvancementHolder, AdvancementProgress> entry : progress.entrySet()) {
 			Map<String, Long> times = new LinkedHashMap<>();
@@ -70,13 +99,18 @@ public final class AdvancementProgressFile {
 			if (firstActivityAt == 0 || started < firstActivityAt) {
 				firstActivityAt = started;
 			}
+			String id = entry.getKey().id().toString();
+			List<List<String>> requirements = entry.getKey().value().requirements().requirements();
+			// Recipes have no display; nobody looks at their criteria.
+			if (entry.getKey().value().display().isPresent() && keepsCriteria(requirements, times)) {
+				criteria.put(id, times);
+			}
 			if (entry.getValue().isDone()) {
-				String id = entry.getKey().id().toString();
 				done.add(id);
-				obtainedAt.put(id, completedAt(times, entry.getKey().value().requirements().requirements()));
+				obtainedAt.put(id, completedAt(times, requirements));
 			}
 		}
-		return new AdvancementProgressFile(done, obtainedAt, firstActivityAt);
+		return new AdvancementProgressFile(done, obtainedAt, firstActivityAt, criteria);
 	}
 
 	public static AdvancementProgressFile read(Path path) {
@@ -95,9 +129,10 @@ public final class AdvancementProgressFile {
 		}
 	}
 
-	private static AdvancementProgressFile parse(JsonObject root) {
+	static AdvancementProgressFile parse(JsonObject root) {
 		Set<String> done = new LinkedHashSet<>();
 		Map<String, Long> obtainedAt = new LinkedHashMap<>();
+		Map<String, Map<String, Long>> criteria = new LinkedHashMap<>();
 		long firstActivityAt = 0;
 		for (Map.Entry<String, JsonElement> entry : root.entrySet()) {
 			String id = entry.getKey();
@@ -110,6 +145,10 @@ public final class AdvancementProgressFile {
 			if (started > 0 && (firstActivityAt == 0 || started < firstActivityAt)) {
 				firstActivityAt = started;
 			}
+			if (!times.isEmpty() && !id.contains(":recipes/")
+				&& keepsCriteria(AdvancementCatalog.get().requirements(id), times)) {
+				criteria.put(id, times);
+			}
 			if (!body.has("done") || !body.get("done").getAsBoolean()) {
 				continue;
 			}
@@ -118,7 +157,7 @@ public final class AdvancementProgressFile {
 				obtainedAt.put(id, completedAt(times, AdvancementCatalog.get().requirements(id)));
 			}
 		}
-		return new AdvancementProgressFile(done, obtainedAt, firstActivityAt);
+		return new AdvancementProgressFile(done, obtainedAt, firstActivityAt, criteria);
 	}
 
 	private static Map<String, Long> criteriaTimes(JsonElement criteria) {

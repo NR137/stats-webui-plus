@@ -7,6 +7,8 @@ public record AdvancementInfo(
 	String description,
 	String icon,
 	String frame,
-	boolean hidden
+	boolean hidden,
+	// Experience points the game gives for it (0 for none).
+	int experience
 ) {
 }

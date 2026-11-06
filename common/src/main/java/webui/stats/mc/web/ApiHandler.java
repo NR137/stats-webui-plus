@@ -90,6 +90,22 @@ public final class ApiHandler {
 		List<PlayerRecord> players = snapshot.players();
 		if (path.startsWith("/api/players/")) {
 			String name = path.substring("/api/players/".length());
+			// /api/players/<name>/advancements/<namespace>/<path>: one player's progress on one advancement.
+			int slash = name.indexOf('/');
+			if (slash > 0) {
+				String rest = name.substring(slash + 1);
+				name = name.substring(0, slash);
+				PlayerRecord player = StatsService.find(players, name);
+				AdvancementInfo info = rest.startsWith("advancements/")
+					? AdvancementCatalog.get().find(toAdvancementId(rest.substring("advancements/".length())))
+					: null;
+				if (player == null || info == null) {
+					HttpJson.error(exchange, 404, "not_found", player == null ? "Player not found" : "Unknown advancement");
+					return;
+				}
+				HttpJson.send(exchange, 200, AdvancementService.playerDetailPayload(info, player, players), cache);
+				return;
+			}
 			PlayerRecord player = StatsService.find(players, name);
 			if (player == null) {
 				HttpJson.error(exchange, 404, "not_found", "Player not found");

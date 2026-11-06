@@ -51,7 +51,8 @@ PLAYERS = [
 	('DeepslateDan', 'steve', False, 268, 112, 20, 0.58, {'story': 3, 'nether': 1.2}, 'miner'),
 	('BlockSmithBea', 'alex', True, 241, 116, 2, 0.46, {'story': 2, 'husbandry': 1}, 'builder'),
 	('CompassCora', 'noor', True, 196, 97, 30, 0.72, {'adventure': 3, 'husbandry': 1.5}, 'explorer'),
-	('CreeperBaneKat', 'kai', False, 174, 90, 9, 0.61, {'adventure': 3, 'nether': 1.5, 'end': 1.5}, 'fighter'),
+	# The longest name Minecraft allows (16 characters), to see how pages handle it.
+	('CreeperBaneKatie', 'kai', False, 174, 90, 9, 0.61, {'adventure': 3, 'nether': 1.5, 'end': 1.5}, 'fighter'),
 	('PistonPia', 'ari', True, 151, 84, 50, 0.41, {'story': 2, 'nether': 1}, 'redstone'),
 	('HarvestHollis', 'sunny', False, 122, 76, 70, 0.37, {'husbandry': 4}, 'farmer'),
 	('TradingTilly', 'makena', True, 93, 61, 26, 0.31, {'adventure': 2, 'husbandry': 2}, 'trader'),
@@ -122,7 +123,82 @@ def depth(adv):
 	return 0 if parent not in ADVANCEMENTS else 1 + depth(parent)
 
 
-def advancement_file(chosen, first, last):
+# How far each play style got with the advancements that have several parts, when not done yet: share of the parts.
+# Unlisted ones get a little (0.05-0.3). The game records the parts of every advancement, also before its parent.
+PROGRESS = {
+	'nether': {'nether/explore_nether': 0.8, 'adventure/kill_all_mobs': 0.7, 'adventure/adventuring_time': 0.5},
+	'miner': {'adventure/adventuring_time': 0.55, 'adventure/kill_all_mobs': 0.45},
+	'builder': {'adventure/adventuring_time': 0.4, 'husbandry/balanced_diet': 0.35},
+	'explorer': {'adventure/adventuring_time': 0.9, 'nether/explore_nether': 0.6, 'husbandry/whole_pack': 0.6,
+		'husbandry/complete_catalogue': 0.45},
+	'fighter': {'adventure/kill_all_mobs': 0.85, 'adventure/adventuring_time': 0.45,
+		'adventure/trim_with_all_exclusive_armor_patterns': 0.4},
+	'redstone': {'adventure/adventuring_time': 0.3},
+	'farmer': {'husbandry/bred_all_animals': 0.8, 'husbandry/balanced_diet': 0.75, 'husbandry/complete_catalogue': 0.6,
+		'husbandry/leash_all_frog_variants': 0.6},
+	'trader': {'husbandry/balanced_diet': 0.5, 'adventure/adventuring_time': 0.45, 'husbandry/complete_catalogue': 0.4},
+	'newcomer': {},
+}
+# Parts that need something first, which the game would have rewarded already: one kill makes Monster Hunter, one
+# bred animal The Parrots and the Bats, a tamed cat or wolf Best Friends Forever. Without it, no progress at all.
+NEEDS = {
+	'nether/explore_nether': 'story/enter_the_nether',
+	'adventure/kill_all_mobs': 'adventure/kill_a_mob',
+	'husbandry/bred_all_animals': 'husbandry/breed_an_animal',
+	'husbandry/complete_catalogue': 'husbandry/tame_an_animal',
+	'husbandry/whole_pack': 'husbandry/tame_an_animal',
+	'adventure/trim_with_all_exclusive_armor_patterns': 'adventure/trim_with_any_armor_pattern',
+	'adventure/salvage_sherd': 'adventure/root',
+}
+# The usual first kill, for Monster Hunter and as the first part of Monsters Hunted.
+COMMON_MOBS = ['minecraft:zombie', 'minecraft:skeleton', 'minecraft:creeper', 'minecraft:spider']
+# Biomes a world usually starts in: everyone has visited at least one for Adventuring Time.
+SPAWN_BIOMES = ['minecraft:plains', 'minecraft:forest', 'minecraft:birch_forest', 'minecraft:taiga', 'minecraft:savanna']
+
+
+def pick_option(local, adv, group):
+	"""Which criterion met a requirement: for "any one of these", a plausible one."""
+	common = [c for c in group if c in COMMON_MOBS]
+	if common:
+		return local.choice(common)
+	return local.choice(group)
+
+
+def partial(local, adv, requirements, style, chosen, first, last):
+	"""Criteria of an unfinished advancement with several parts, as far as this play style got; None for none."""
+	short = adv.removeprefix('minecraft:')
+	needs = NEEDS.get(short)
+	if needs and 'minecraft:' + needs not in chosen:
+		return None
+	share = PROGRESS[style].get(short)
+	share = local.uniform(0.05, 0.3) if share is None else min(0.97, max(0.0, share + local.uniform(-0.1, 0.1)))
+	if style == 'newcomer':
+		share = min(share, 0.1)
+	count = min(len(requirements) - 1, round(len(requirements) * share))
+	groups = list(requirements)
+	local.shuffle(groups)
+	met = []
+	if short == 'adventure/adventuring_time':
+		spawn = local.choice(SPAWN_BIOMES)
+		met.append(spawn)
+		groups = [g for g in groups if spawn not in g]
+	if short == 'adventure/kill_all_mobs':
+		first_kill = local.choice(COMMON_MOBS)
+		met.append(first_kill)
+		groups = [g for g in groups if first_kill not in g]
+	if short == 'nether/explore_nether':
+		# Where a Nether portal usually leads.
+		met.append('minecraft:nether_wastes')
+		groups = [g for g in groups if 'minecraft:nether_wastes' not in g]
+	met += [pick_option(local, adv, group) for group in groups[:max(0, count - len(met))]]
+	if not met:
+		return None
+	# Spread over the player's time on the server, oldest first.
+	moments = sorted(first + (last - first) * local.random() for _ in met)
+	return {criterion: stamp(moment) for criterion, moment in zip(met, moments)}
+
+
+def advancement_file(chosen, first, last, style='newcomer', name=''):
 	# Early steps come early: order by depth in the tree (with some shuffle), then hand out the sorted moments.
 	moments = sorted(first + (last - first) * rng.random() ** 1.6 for _ in chosen)
 	progress = sorted(chosen, key=lambda adv: depth(adv) + rng.uniform(0, 2.5))
@@ -133,20 +209,35 @@ def advancement_file(chosen, first, last):
 		if adv in when and parent in when and when[adv] <= when[parent]:
 			when[adv] = when[parent] + timedelta(minutes=rng.randint(5, 600))
 	body = {}
+	# Its own random numbers per player, so the rest of the sample data stays the same.
+	local = random.Random(f'progress {name}')
 	for adv in chosen:
 		moment = min(when[adv], last)
 		_, criteria, requirements = ADVANCEMENTS[adv]
-		needed = [group[0] for group in requirements] if requirements else criteria[:1]
+		needed = [pick_option(local, adv, group) for group in requirements] if requirements else criteria[:1]
 		times = {}
 		for i, criterion in enumerate(needed):
 			times[criterion] = stamp(moment - timedelta(minutes=(len(needed) - 1 - i) * rng.randint(20, 900)))
 		body[adv] = {'criteria': times, 'done': True}
-	# One advancement in progress, as in a real save.
+	# Nobody plays for days without killing a mob: everyone but the newcomer has Monster Hunter (and its parent
+	# Adventure), early on. Added after the rest, so the main random numbers (and all other sample data) stay the same.
+	if style != 'newcomer':
+		moment = first + timedelta(hours=local.uniform(1, 30))
+		for adv in ('minecraft:adventure/root', 'minecraft:adventure/kill_a_mob'):
+			if adv not in body:
+				_, criteria, requirements = ADVANCEMENTS[adv]
+				body[adv] = {'criteria': {pick_option(local, adv, group): stamp(moment) for group in requirements},
+					'done': True}
+			moment += timedelta(minutes=local.randint(1, 90))
+		chosen = [*chosen, 'minecraft:adventure/root', 'minecraft:adventure/kill_a_mob']
+	# Unfinished advancements with several parts, as far as the play style got (the game records them all along).
 	for adv in ORDER:
 		_, criteria, requirements = ADVANCEMENTS[adv]
-		if adv not in body and len(requirements) > 3 and (ADVANCEMENTS[adv][0] in body):
-			body[adv] = {'criteria': {requirements[0][0]: stamp(last - timedelta(days=2))}, 'done': False}
-			break
+		if adv in body or len(requirements) < 2:
+			continue
+		times = partial(local, adv, requirements, style, chosen, first, min(last, NOW))
+		if times:
+			body[adv] = {'criteria': times, 'done': False}
 	body['DataVersion'] = DATA_VERSION
 	return body
 
@@ -170,8 +261,12 @@ def stats_file(style, hours):
 		'newcomer': {'walk': 1.3, 'fight': 0.4, 'mine': 0.5, 'fly': 0, 'nether': 0},
 	}[style])
 	ticks = round(h * 72000)
+	# On a dedicated server "Time with World Open" counts exactly like "Time Played" (both while the player is online);
+	# only singleplayer goes on counting it while the game is paused. Its old extra is still drawn, so the random
+	# numbers after it (and all other sample data) stay the same.
+	n(h * 3000)
 	custom = {
-		'play_time': ticks, 'total_world_time': ticks + n(h * 3000), 'time_since_rest': n(18000),
+		'play_time': ticks, 'total_world_time': ticks, 'time_since_rest': n(18000),
 		'time_since_death': n(min(ticks, 400000)), 'leave_game': n(h * 0.9),
 		'walk_one_cm': n(h * 260000 * f['walk']), 'sprint_one_cm': n(h * 190000 * f['walk']),
 		'crouch_one_cm': n(h * 4000 * f['build']), 'swim_one_cm': n(h * 9000 * f['walk']),
@@ -273,7 +368,7 @@ for name, skin, slim, hours, days, since_online, share, weights, style in PLAYER
 	first = NOW - timedelta(days=days, hours=rng.randint(0, 12))
 	last = NOW - timedelta(hours=since_online, minutes=rng.randint(0, 59))
 	(stats_dir / f'{player}.json').write_text(json.dumps(stats_file(style, hours)))
-	(adv_dir / f'{player}.json').write_text(json.dumps(advancement_file(pick_advancements(share, weights), first, last), indent=2))
+	(adv_dir / f'{player}.json').write_text(json.dumps(advancement_file(pick_advancements(share, weights), first, last, style, name), indent=2))
 	sessions[str(player)] = {'firstJoin': int(first.timestamp() * 1000), 'lastLogout': int(last.timestamp() * 1000)}
 	cache.append({'name': name, 'uuid': str(player), 'expiresOn': stamp(NOW + timedelta(days=30))})
 	print(f'{name:16} {player}  {"slim" if slim else "wide"} {skin}')
