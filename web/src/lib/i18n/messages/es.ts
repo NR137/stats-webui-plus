@@ -283,6 +283,7 @@ export const es = {
 	'compare.advancementsDiff': 'Logros distintos',
 	'compare.onlyAdvancements': 'Solo {name}',
 	'compare.onlyAdvancementsEmpty': 'Ningún logro exclusivo',
+	'compare.otherAdvancements': 'Otros logros',
 	'about.heading': 'Cómo se mide al mejor',
 	'about.lead':
 		'Minecraft no tiene un skill. Solo cuenta lo que haces. Por eso no usamos una sola estadística: si premiáramos tiempo, gana quien deja el PC encendido; si premiáramos kills, gana quien pone un spawner de silverfish.',

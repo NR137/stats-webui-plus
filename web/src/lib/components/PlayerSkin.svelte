@@ -403,7 +403,7 @@
 		height: 20rem;
 		background: var(--color-card);
 		border: 2px solid var(--color-border);
-		box-shadow: inset 0 0 0 2px var(--button-shadow);
+		box-shadow: var(--panel-edge);
 		overflow: hidden;
 		cursor: grab;
 	}

@@ -285,6 +285,7 @@ export const en: Record<MessageKey, string> = {
 	'compare.advancementsDiff': 'Unique advancements',
 	'compare.onlyAdvancements': 'Only {name}',
 	'compare.onlyAdvancementsEmpty': 'No unique advancements',
+	'compare.otherAdvancements': 'Other advancements',
 	'about.heading': 'How we pick the best',
 	'about.lead':
 		'Minecraft has no skill rating. It only counts what you do. So we do not use a single stat: play time rewards AFK, and raw kills reward a silverfish spawner.',

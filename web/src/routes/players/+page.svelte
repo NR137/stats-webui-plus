@@ -306,18 +306,28 @@
 		cursor: pointer;
 	}
 
-	tbody td:first-child {
-		border-left: 2px solid var(--color-border);
-	}
-
-	tbody td:last-child {
-		border-right: 2px solid var(--color-border);
-	}
-
+	/* Each row a slot like the ranking's rows: a row can't have a shadow, so its cells share the slot's edge. */
 	tbody td {
 		background: var(--slot-bg);
 		border-top: 2px solid var(--color-border);
 		border-bottom: 2px solid var(--color-border);
+		box-shadow:
+			inset 0 2px 0 var(--slot-edge-dark),
+			inset 0 -2px 0 var(--slot-edge-light);
+	}
+
+	tbody td:first-child {
+		border-left: 2px solid var(--color-border);
+		box-shadow:
+			inset 2px 2px 0 var(--slot-edge-dark),
+			inset 0 -2px 0 var(--slot-edge-light);
+	}
+
+	tbody td:last-child {
+		border-right: 2px solid var(--color-border);
+		box-shadow:
+			inset 0 2px 0 var(--slot-edge-dark),
+			inset -2px -2px 0 var(--slot-edge-light);
 	}
 
 	tbody tr:hover td {

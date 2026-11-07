@@ -287,6 +287,7 @@ export const de: Record<MessageKey, string> = {
 	'compare.advancementsDiff': 'Einzigartige Fortschritte',
 	'compare.onlyAdvancements': 'Nur {name}',
 	'compare.onlyAdvancementsEmpty': 'Keine einzigartigen Fortschritte',
+	'compare.otherAdvancements': 'Weitere Fortschritte',
 	'about.heading': 'So ermitteln wir die Besten',
 	'about.lead':
 		'Minecraft hat keine Skill-Wertung. Es zählt nur, was du tust. Deshalb verlassen wir uns nicht auf eine einzelne Statistik: Spielzeit belohnt AFK, und die bloße Zahl erlegter Kreaturen belohnt einen Silberfischchen-Spawner.',

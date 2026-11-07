@@ -17,38 +17,72 @@
 
 	// Space kept free between the bubble and the window's edge.
 	const EDGE = 8;
+	let wrap = $state<HTMLElement | undefined>();
 	let bubble = $state<HTMLElement | undefined>();
 
 	/* A bubble near the window's edge (an advancement tile at the end of a row, the podium's outer places) would stick
-	   out of it, cut off and making the page scroll sideways; it moves along until it fits. */
+	   out of it, cut off and making the page scroll sideways; it moves along until it fits. Worked out before it opens
+	   where possible: laid out at its usual place even for a moment, it would make phones keep the page wider. */
 	function fit() {
 		const node = bubble;
-		if (!node) {
+		const anchor = wrap;
+		if (!node || !anchor) {
 			return;
 		}
-		node.style.removeProperty('--shift');
-		const box = node.getBoundingClientRect();
-		if (!box.width) {
+		// Its width doesn't depend on where it is (max-content, at most max-width), so a closed bubble is measured
+		// fixed to the window, where it never widens the page.
+		let width = node.offsetWidth;
+		if (!width) {
+			node.style.setProperty('display', 'block');
+			node.style.setProperty('position', 'fixed');
+			node.style.setProperty('visibility', 'hidden');
+			width = node.offsetWidth;
+			node.style.removeProperty('display');
+			node.style.removeProperty('position');
+			node.style.removeProperty('visibility');
+		}
+		if (!width) {
 			return;
 		}
+		const around = anchor.getBoundingClientRect();
+		const left =
+			align === 'start' ? around.left : align === 'end' ? around.right - width : around.left + around.width / 2 - width / 2;
 		// The page's own width: without a scrollbar, or the space kept free for one (scrollbar-gutter), even where the
 		// browser hides scrollbars but keeps that space.
-		const width = document.documentElement.getBoundingClientRect().width;
+		const page = document.documentElement.getBoundingClientRect().width;
 		let shift = 0;
-		if (box.right > width - EDGE) {
-			shift = width - EDGE - box.right;
+		if (left + width > page - EDGE) {
+			shift = page - EDGE - (left + width);
 		}
-		if (box.left + shift < EDGE) {
-			shift = EDGE - box.left;
+		if (left + shift < EDGE) {
+			shift = EDGE - left;
 		}
 		if (shift) {
 			node.style.setProperty('--shift', `${Math.round(shift)}px`);
+		} else {
+			node.style.removeProperty('--shift');
 		}
 	}
 
-	/* Measured whenever the bubble appears (its size goes from nothing to its own), whatever opened it: the mouse,
-	   the keyboard, or a finger that touched it and let go elsewhere, which leaves it open on phones without an event
-	   to listen to. Runs after layout and before the bubble is drawn, so it never shows in the wrong place. */
+	// Before it opens: a finger touching down (it opens when the finger lifts), the mouse arriving, keyboard focus.
+	$effect(() => {
+		const node = wrap;
+		if (!node) {
+			return;
+		}
+		const events = ['pointerdown', 'pointerenter', 'focusin'];
+		for (const event of events) {
+			node.addEventListener(event, fit);
+		}
+		return () => {
+			for (const event of events) {
+				node.removeEventListener(event, fit);
+			}
+		};
+	});
+
+	/* And whenever it appears or changes size (another language), whatever opened it: after layout, before it is
+	   drawn, so it never shows in the wrong place. */
 	$effect(() => {
 		const node = bubble;
 		if (!node) {
@@ -61,7 +95,7 @@
 </script>
 
 {#if text}
-	<span class="wrap {align} {placement}">
+	<span class="wrap {align} {placement}" bind:this={wrap}>
 		{#if focusable}
 			<button type="button" class="hit marked">
 				{@render children()}
@@ -131,7 +165,7 @@
 		text-shadow: var(--text-shadow);
 		background: var(--color-tooltip);
 		border: 2px solid var(--color-border);
-		box-shadow: inset 0 0 0 2px var(--button-shadow);
+		box-shadow: var(--panel-edge);
 		/* Not just invisible: a hidden bubble that still took up space would widen the page near its edge. */
 		display: none;
 		pointer-events: none;

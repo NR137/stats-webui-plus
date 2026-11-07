@@ -46,6 +46,36 @@ def _page(browser, locale='en-US', **options) -> tuple[Page, list[str]]:
 _SIDEWAYS = '() => { const y = scrollY; scrollTo(1e6, y); const x = scrollX; scrollTo(0, y); return x; }'
 
 
+# For the light theme: every visible text inside a .panel or .slot with an opaque background, its contrast ratio to that
+# background (WCAG), and whether it has a text shadow. Buttons are left out (the game's grey buttons, white text).
+_LIGHT_TEXT = r'''() => {
+	const rgb = (value) => (value.match(/[\d.]+/g) || []).map(Number);
+	const lum = ([r, g, b]) => [r, g, b].map((c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; })
+		.reduce((sum, c, i) => sum + c * [0.2126, 0.7152, 0.0722][i], 0);
+	let texts = 0; const low = [], shadowed = [];
+	for (const box of document.querySelectorAll('main .panel, main .slot')) {
+		const bg = rgb(getComputedStyle(box).backgroundColor);
+		if (bg.length < 3 || (bg.length > 3 && bg[3] < 0.95)) continue;
+		const walker = document.createTreeWalker(box, NodeFilter.SHOW_TEXT);
+		for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+			const el = node.parentElement;
+			if (!node.textContent.trim() || !el.getClientRects().length || el.closest('button, .mc-btn, select')) continue;
+			const style = getComputedStyle(el);
+			if (style.visibility === 'hidden' || Number(style.opacity) < 1) continue;
+			const own = el.closest('.panel, .slot');
+			if (own !== box) continue;
+			texts++;
+			const a = lum(rgb(style.color)), b = lum(bg);
+			const ratio = (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+			const label = node.textContent.trim().slice(0, 24);
+			if (ratio < 4.5) low.push(label + ' ' + ratio.toFixed(2));
+			if (style.textShadow !== 'none') shadowed.push(label);
+		}
+	}
+	return [texts, low, shadowed];
+}'''
+
+
 def _shows(page: Page, text: str) -> bool:
 	try:
 		page.get_by_text(text, exact=False).first.wait_for(state='visible')
@@ -147,6 +177,29 @@ def _checks(browser, base: str, names: list[str], check) -> None:
 				f'at {width} px a tooltip at the {side} edge stays inside the window ({bubble})')
 			wide = page.evaluate(_SIDEWAYS)
 			check(wide == 0, f'at {width} px an open tooltip doesn\'t widen the page (scrolls {wide} px sideways)')
+	# Not even at the moment it opens: phones keep a page wider that was too wide once. A finger touching down, then the
+	# tooltip opening (forced :hover, as a finger that lets go elsewhere leaves it) and the width taken at once, before
+	# the next frame.
+	page.set_viewport_size({'width': 390, 'height': 900})
+	page.goto(base + '/advancements')
+	page.wait_for_load_state('networkidle')
+	cdp = page.context.new_cdp_session(page)
+	cdp.send('DOM.enable')
+	cdp.send('CSS.enable')
+	root = cdp.send('DOM.getDocument', {'depth': -1})['root']['nodeId']
+	nodes = cdp.send('DOM.querySelectorAll', {'nodeId': root, 'selector': 'main span:has(> [role=tooltip])'})['nodeIds']
+	opened = wider = 0
+	for index, node in enumerate(nodes[:20]):
+		if not page.evaluate('''(i) => { const tip = document.querySelectorAll('main span:has(> [role=tooltip])')[i];
+				if (!tip.getClientRects().length) return false; tip.scrollIntoView({block: 'center'});
+				tip.dispatchEvent(new PointerEvent('pointerdown', {bubbles: true, pointerType: 'touch'})); return true; }''', index):
+			continue
+		cdp.send('CSS.forcePseudoState', {'nodeId': node, 'forcedPseudoClasses': ['hover']})
+		opened += 1
+		if page.evaluate('document.documentElement.scrollWidth > document.documentElement.getBoundingClientRect().width'):
+			wider += 1
+		cdp.send('CSS.forcePseudoState', {'nodeId': node, 'forcedPseudoClasses': []})
+	check(opened > 0 and wider == 0, f'a tooltip opened by a finger never widens the page, not even for a moment ({wider} of {opened})')
 	page.context.close()
 
 	page, errors = _page(browser, viewport={'width': 390, 'height': 844}, is_mobile=True, has_touch=True)
@@ -184,6 +237,18 @@ def _ui_checks(browser, base: str, names: list[str], check) -> None:
 	page.reload()
 	check(page.evaluate('document.documentElement.dataset.theme') == 'light', 'the chosen theme is kept after a reload')
 
+	# CHANGELOG 1.4.0: the light theme's panels and slots are the game's grey, their text dark without a shadow and
+	# at least 4.5:1 against it, on every page alike. (The advancement tiles stay see-through and dark, as in the game.)
+	player = quote(names[0], safe='')
+	for path in ['/', '/about', f'/compare?a={player}&b={quote(names[1], safe="")}', '/advancements/minecraft/story/mine_stone',
+			f'/players/{player}/advancements/minecraft/husbandry/complete_catalogue']:
+		page.goto(base + path)
+		page.wait_for_load_state('networkidle')
+		texts, low, shadowed = page.evaluate(_LIGHT_TEXT)
+		check(texts > 0 and not low, f'{path}: text on light panels is readable ({texts} texts, low contrast: {low[:3]})')
+		check(not shadowed, f'{path}: text on light panels has no shadow ({shadowed[:3]})')
+	page.goto(base + '/')
+
 	# Language: a language picked in the switcher wins over the browser's and is remembered (CHANGELOG).
 	page.get_by_role('button', name=re.compile(r'^Language:')).click()
 	page.get_by_role('option', name='Deutsch').click()
@@ -207,6 +272,10 @@ def _ui_checks(browser, base: str, names: list[str], check) -> None:
 	page.goto(f'{base}/compare?a={quote(names[0], safe="")}&b={quote(names[1], safe="")}')
 	check(_shows(page, 'Unique advancements'), 'the compare page compares two players')
 	check(page.get_by_text(names[0]).count() > 0 and page.get_by_text(names[1]).count() > 0, 'both players are on it')
+	# CHANGELOG 1.4.0: each side's name leads to that player's page.
+	page.get_by_role('heading', name=names[1]).get_by_role('link').click()
+	page.wait_for_url(re.compile(r'/players/' + re.escape(quote(names[1], safe='')) + '$'))
+	check(_shows(page, names[1]), 'a name on the compare page opens that player\'s page')
 
 	# Search on the players list.
 	page.goto(base + '/players')

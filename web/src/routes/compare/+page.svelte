@@ -2,7 +2,7 @@
 	import { pageTitleTag } from '$lib/branding.svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { compareAdvancementTitles, matchesAdvancementQuery } from '$lib/advancements';
+	import { advancementTabTitle, compareAdvancementTitles, matchesAdvancementQuery } from '$lib/advancements';
 	import { getAdvancements, getLeaderboards, getPlayerProfile, getPlayers } from '$lib/api';
 	import AdvancementTiles from '$lib/components/AdvancementTiles.svelte';
 	import Loader from '$lib/components/Loader.svelte';
@@ -15,7 +15,7 @@
 	import { boardHint, i18n, nameComparer, pageTitle, t, tDynamic } from '$lib/i18n/i18n.svelte';
 	import { gradeItems, gradeOrder } from '$lib/playerStats';
 	import { cappedResults, deferredValue } from '$lib/search.svelte';
-	import type { AdvancementInfo, LeaderboardsResponse, PlayerDetail, PlayerSummary } from '$lib/types';
+	import type { AdvancementInfo, AdvancementTab, LeaderboardsResponse, PlayerDetail, PlayerSummary } from '$lib/types';
 	import {
 		vanillaBoardHref,
 		vanillaGroups,
@@ -48,6 +48,7 @@
 	// Raw: replaced as a whole when loaded, never changed in place; deep reactivity would proxy every row.
 	let catalog = $state.raw<LeaderboardsResponse | null>(null);
 	let advancementCatalog = $state<AdvancementInfo[]>([]);
+	let advancementTabs = $state<AdvancementTab[]>([]);
 	let players = $state<PlayerSummary[]>([]);
 	let playersReady = $state(false);
 	let left = $state('');
@@ -82,6 +83,7 @@
 				players = data.players;
 				catalog = boards;
 				advancementCatalog = advancements?.advancements ?? [];
+				advancementTabs = advancements?.tabs ?? [];
 				failed = false;
 			})
 			.catch(() => {
@@ -514,6 +516,19 @@
 			onlyB: filterExclusive(exclusiveSides.onlyB, needle, sectionHit)
 		};
 	});
+	// By tab, in the game's order, both sides next to each other: each tab with its own background, as on the
+	// advancement pages. Advancements of a tab the catalog doesn't know come last, on stone.
+	const exclusiveTabs = $derived.by(() => {
+		const known = new Set(advancementTabs.map((tab) => tab.id));
+		const groups: { tab: AdvancementTab; a: AdvancementInfo[]; b: AdvancementInfo[] }[] = [
+			...advancementTabs,
+			{ id: '', title: '', icon: 'minecraft:experience_bottle' }
+		].map((tab) => {
+			const inTab = (item: AdvancementInfo) => (tab.id ? item.tab === tab.id : !known.has(item.tab));
+			return { tab, a: shownExclusive.onlyA.items.filter(inTab), b: shownExclusive.onlyB.items.filter(inTab) };
+		});
+		return groups.filter((group) => group.a.length > 0 || group.b.length > 0);
+	});
 	const showExclusive = $derived(shownExclusive.onlyA.matched + shownExclusive.onlyB.matched > 0);
 	const hasMatches = $derived(
 		shownOverview.length > 0 ||
@@ -631,7 +646,7 @@
 			{#if leftProfile}
 				<div class="who">
 					<PlayerSkin uuid={leftProfile.uuid} variant="head" />
-					<h2>{leftProfile.name}</h2>
+					<h2><a class="name-link" href="/players/{encodeURIComponent(leftProfile.name)}">{leftProfile.name}</a></h2>
 				</div>
 				<PlayerSkin uuid={leftProfile.uuid} variant="body" />
 				<p class="scoreline">
@@ -655,7 +670,7 @@
 			{#if rightProfile}
 				<div class="who">
 					<PlayerSkin uuid={rightProfile.uuid} variant="head" />
-					<h2>{rightProfile.name}</h2>
+					<h2><a class="name-link" href="/players/{encodeURIComponent(rightProfile.name)}">{rightProfile.name}</a></h2>
 				</div>
 				<PlayerSkin uuid={rightProfile.uuid} variant="body" />
 				<p class="scoreline">
@@ -722,30 +737,38 @@
 						</span>
 					</button>
 					{#if exclusiveExpanded()}
-						<div class="exclusive">
-							<div class="exclusive-col">
-								<p class="section sub">
-									{t('compare.onlyAdvancements', { name: leftProfile?.name ?? '' })}
-									<span class="count">{shownExclusive.onlyA.matched}</span>
-								</p>
-								{#if shownExclusive.onlyA.items.length === 0}
-									<p class="muted empty">{t('compare.onlyAdvancementsEmpty')}</p>
-								{:else}
-									<AdvancementTiles items={shownExclusive.onlyA.items} />
-								{/if}
-							</div>
-							<div class="exclusive-col">
-								<p class="section sub">
-									{t('compare.onlyAdvancements', { name: rightProfile?.name ?? '' })}
-									<span class="count">{shownExclusive.onlyB.matched}</span>
-								</p>
-								{#if shownExclusive.onlyB.items.length === 0}
-									<p class="muted empty">{t('compare.onlyAdvancementsEmpty')}</p>
-								{:else}
-									<AdvancementTiles items={shownExclusive.onlyB.items} />
-								{/if}
-							</div>
+						<div class="exclusive sides">
+							<p class="section sub">
+								{t('compare.onlyAdvancements', { name: leftProfile?.name ?? '' })}
+								<span class="count">{shownExclusive.onlyA.matched}</span>
+							</p>
+							<p class="section sub">
+								{t('compare.onlyAdvancements', { name: rightProfile?.name ?? '' })}
+								<span class="count">{shownExclusive.onlyB.matched}</span>
+							</p>
 						</div>
+						{#each exclusiveTabs as group (group.tab.id)}
+							<p class="tab-title">
+								<McItem id={group.tab.icon} compact />
+								{group.tab.id ? advancementTabTitle(group.tab.id, group.tab.title) : t('compare.otherAdvancements')}
+							</p>
+							<div class="exclusive">
+								{#each [{ items: group.a, name: leftProfile?.name ?? '' }, { items: group.b, name: rightProfile?.name ?? '' }] as side, index (index)}
+									<div class="exclusive-col">
+										<!-- On phones the sides stack, so each says whose it is. -->
+										<p class="section sub side-name">
+											{t('compare.onlyAdvancements', { name: side.name })}
+											<span class="count">{side.items.length}</span>
+										</p>
+										{#if side.items.length > 0}
+											<AdvancementTiles items={side.items} background={group.tab.background ?? ''} />
+										{:else}
+											<p class="muted empty">{t('compare.onlyAdvancementsEmpty')}</p>
+										{/if}
+									</div>
+								{/each}
+							</div>
+						{/each}
 					{/if}
 				</div>
 			{/if}
@@ -834,6 +857,23 @@
 		align-items: center;
 		justify-content: center;
 		gap: 0.55rem;
+	}
+
+	/* The name leads to the player's page. */
+	.name-link {
+		text-decoration: underline dotted 2px;
+		text-underline-offset: 0.25em;
+	}
+
+	.name-link:hover,
+	.name-link:focus-visible {
+		color: var(--color-hover);
+	}
+
+	/* Titles get room for two lines, so a tile with a long title isn't taller than its neighbour on the other side and
+	   the rows line up. */
+	.exclusive :global(.tile .label) {
+		min-height: 2.5em;
 	}
 
 	h2:not(.page-title) {
@@ -936,6 +976,19 @@
 
 	.exclusive-col {
 		min-width: 0;
+	}
+
+	.tab-title {
+		display: flex;
+		align-items: center;
+		gap: 0.45rem;
+		margin: 1rem 0 0.45rem;
+		color: var(--color-gold);
+	}
+
+	/* Whose side: once above both columns; on phones, where they stack, above each. */
+	.side-name {
+		display: none;
 	}
 
 	.exclusive .empty {
@@ -1065,6 +1118,14 @@
 		.values,
 		.exclusive {
 			grid-template-columns: 1fr;
+		}
+
+		.exclusive.sides {
+			display: none;
+		}
+
+		.side-name {
+			display: block;
 		}
 
 		.num.a,

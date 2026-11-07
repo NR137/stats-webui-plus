@@ -95,6 +95,7 @@
 		--color-text: #e0e0e0;
 		--color-hover: #ffffa0;
 		--slot-hover: #ffffff14;
+		--slot-edge: none;
 		--text-shadow: 2px 2px 0 #3f3f3f;
 		/* Like the dark theme's slots: see-through, so the sand shows a little. */
 		background: #2b1e14b3;

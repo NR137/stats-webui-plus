@@ -76,6 +76,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **"How we rank" left the menu.** The footer links to it, and so do the ranking and a player's grades ("How is this
   calculated?") and their advancement tier ("What are tiers?").
 
+#### Light theme
+
+- **Reworked after Minecraft's light screens** (inventory, chest), and the same on every page. Lists, cards, the skin
+  viewer, tooltips and search fields are the game's grey, sunk in like its slots, on the sand as before; only what
+  can be clicked stands out, like the game's buttons. The players list's rows look like every other list's. Text is
+  dark and without the light shadow that made it look blurry. Every text on them has at least 4.5:1 contrast,
+  including scores, ranks and dates, which were hard to read in light gold and green.
+- **The advancement tiles and tree** keep each tab's background and the dark tiles of the game, as in the dark theme.
+- The dark theme is unchanged.
+
+#### Compare
+
+- **A player's name links to their page**, above their 3D model.
+- **Advancements only one of them has** are grouped by tab, each tab on its own background as on the advancement
+  pages, with both players next to each other; their tiles line up in rows (a title on two lines no longer makes its
+  tile taller).
+
 #### Project and build
 
 - **Failed minecraft.wiki downloads fail the build** (rate limits, outages, timeouts; a missing image is still fine),
@@ -98,8 +115,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Tooltips are opaque, so they are easier to read.
 - **Pages no longer scroll sideways in windows between about 640 and 900 px wide** (tablets, half a screen). The
   podium's player figures and the tooltips of tiles at the end of a row reached past the window's edge, even with the
-  tooltip closed. Tooltips near the edge now move along to stay inside the window, also on phones (where a tooltip
-  stays open after touching a tile and letting go elsewhere, and made the page scroll sideways while it was open).
+  tooltip closed. Tooltips near the edge now move along to stay inside the window, also on phones, where a tooltip
+  stays open after touching a tile and letting go elsewhere. Their place is worked out before they open: shown at the
+  edge even for a moment, they made phones keep the page scrollable sideways.
 - **The favicon** is at one fixed address, `/favicon`: the Minecraft server's icon (`server-icon.png`, the one the
   game's server list shows) if it has one, else the web UI's own. Servers without an icon no longer cause an error in
   the browser console on every page load, and the icon no longer depends on a script swapping it after the page

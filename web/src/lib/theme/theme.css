@@ -47,27 +47,37 @@ html[data-theme='dark'] {
 	--color-silver: #c6c6c6;
 	--color-bronze: #d4893a;
 	--text-shadow: 2px 2px 0 var(--color-shadow);
+	/* Edges: panels (cards, lists, the skin viewer, tooltips) and slots (rows, stat tiles, search fields, bars). */
+	--panel-edge: inset 0 0 0 2px var(--button-shadow);
+	--slot-edge: none;
+	/* The slot edge's two colours, for slots drawn in parts (the cells of a table row). */
+	--slot-edge-dark: transparent;
+	--slot-edge-light: transparent;
 	color-scheme: dark;
 }
 
+/* Light: Minecraft's light screens (inventory, chest, the advancement window) on the sand. Panels and slots are the
+   game's grey, sunk in like its slots, text is dark without a shadow (as the game writes on its grey), and every colour has at
+   least 4.5:1 contrast on sand, panels and slots. The advancement backgrounds and tiles stay as in the game, with the
+   same outline as in the dark theme. */
 html[data-theme='light'] {
 	--color-bg: #c4a36a;
-	--color-fg: #3f3f3f;
-	--color-muted: #6b5428;
-	--color-text: #3f2a14;
-	--color-accent: #2d6a1e;
+	--color-fg: #2b2b2b;
+	--color-muted: #4c4c4c;
+	--color-text: #3f3f3f;
+	--color-accent: #1a5010;
 	/* Advancement tiles stay dark in the light theme (AdvancementTile), with the game's colours. */
 	--color-advancement: #ffff00;
 	--color-challenge: #ff88ff;
-	--color-gold: #aa7f00;
+	--color-gold: #5c4400;
 	/* Pure yellow is unreadable on the light background; a dark gold stands out from it. */
 	--color-splash: #6e4a00;
-	--color-splash-shadow: var(--color-shadow);
-	--color-hover: #5a3c00;
-	--color-border: #3f2a14;
-	--color-card: #f0e2b8d9;
-	--color-tooltip: #efe0b4;
-	--color-shadow: #e8d9b0;
+	--color-splash-shadow: transparent;
+	--color-hover: #7a2a00;
+	--color-border: #2b2b2b;
+	--color-card: #c6c6c6;
+	--color-tooltip: #e0e0e0;
+	--color-shadow: transparent;
 	--color-overlay: #e8d4a38a;
 	--dirt-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' shape-rendering='crispEdges'%3E%3Cpath fill='%23d4b57a' d='M0 0h8v8H0z'/%3E%3Cpath fill='%23c4a36a' d='M0 0h4v4H0zm4 4h4v4H4z'/%3E%3Cpath fill='%23e0c58a' d='M4 0h2v2H4zm0 6h4v2H4zM0 4h2v2H0z'/%3E%3Cpath fill='%23b8935c' d='M6 2h2v2H6zM2 6h2v2H2z'/%3E%3C/svg%3E");
 	--button-face: #6f6f6f;
@@ -78,15 +88,21 @@ html[data-theme='light'] {
 	--button-shadow-hover: #5c5c5c;
 	--button-border: #000000;
 	--button-border-hover: #ffffff;
-	--slot-bg: #c4a36acc;
-	--slot-hover: #ffffff55;
-	--color-plate: #efe3b6;
+	--slot-bg: #bcbcbc;
+	--slot-hover: #d4d4d4;
+	--color-plate: #c6c6c6;
 	--color-plate-gold: #f1d56a;
 	--color-plate-silver: #d8d8e2;
 	--color-plate-bronze: #e8b87a;
 	--color-silver: #5c5c68;
 	--color-bronze: #8a4e16;
-	--text-shadow: 2px 2px 0 var(--color-shadow);
+	--text-shadow: none;
+	/* The game's bevels: only what can be clicked stands out (buttons, raised: light top left, dark bottom right);
+	   everything that just shows something is sunk in (dark top left, light bottom right), panels as slots. */
+	--panel-edge: inset 2px 2px 0 #555555, inset -2px -2px 0 #ffffff;
+	--slot-edge: inset 2px 2px 0 #555555, inset -2px -2px 0 #ffffff;
+	--slot-edge-dark: #555555;
+	--slot-edge-light: #ffffff;
 	color-scheme: light;
 }
 
@@ -203,13 +219,14 @@ select:focus-visible,
 	background: var(--color-card);
 	border: 2px solid var(--color-border);
 	border-radius: 0;
-	box-shadow: inset 0 0 0 2px var(--button-shadow);
+	box-shadow: var(--panel-edge);
 }
 
 .slot {
 	background: var(--slot-bg);
 	border: 2px solid var(--color-border);
 	border-radius: 0;
+	box-shadow: var(--slot-edge);
 }
 
 .slot:hover {
