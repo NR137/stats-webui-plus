@@ -23,6 +23,7 @@ def run(base: str, names: list[str], check) -> None:
 			_menu_checks(browser, base, names, check)
 			_advancement_checks(browser, base, names, check)
 			_player_advancement_checks(browser, base, names, check)
+			_tree_checks(browser, base, names, check)
 		finally:
 			browser.close()
 
@@ -284,13 +285,24 @@ def _menu_checks(browser, base: str, names: list[str], check) -> None:
 	page.context.close()
 
 
+def _across_tabs(page: Page, script: str) -> list:
+	"""Runs a script on each advancement tab in turn (one is shown at a time) and returns its results per tab."""
+	results = []
+	tabs = page.locator('.tab-bar [role=tab]')
+	for index in range(tabs.count()):
+		tabs.nth(index).click()
+		page.wait_for_timeout(250)
+		results.append(page.evaluate(script))
+	return results
+
+
 def _advancement_checks(browser, base: str, names: list[str], check) -> None:
 	"""CHANGELOG 1.4.0: advancements on the game's frames (shape = type, gold = obtained), titles coloured like the
 	game's chat, and the Ominous Banner icon."""
 	page, errors = _page(browser)
 	page.goto(f'{base}/players/{quote(names[0], safe="")}/advancements')
 	page.locator('.advancement-icon').first.wait_for()
-	tiles = page.evaluate("""async () => {
+	tiles = [tile for tab in _across_tabs(page, """async () => {
 		const catalog = await (await fetch('/api/advancements')).json();
 		const frames = Object.fromEntries(catalog.advancements.map((item) => [item.id, item.frame]));
 		return [...document.querySelectorAll('.tile')].map((tile) => {
@@ -301,7 +313,7 @@ def _advancement_checks(browser, base: str, names: list[str], check) -> None:
 			return { id, frame: frames[id], image, done: Boolean(tile.querySelector('.when')),
 				color: getComputedStyle(tile.querySelector('.label')).color };
 		});
-	}""")
+	}""") for tile in tab]
 	wrong_shape = [tile['id'] for tile in tiles if f"/{tile['frame']}_frame_" not in tile['image']]
 	check(tiles and not wrong_shape, f'every advancement sits on the frame of its type ({len(tiles)} tiles, wrong: {wrong_shape[:3]})')
 	wrong_colour = [tile['id'] for tile in tiles if ('_frame_obtained' in tile['image']) != tile['done']]
@@ -350,11 +362,14 @@ def _player_advancement_checks(browser, base: str, names: list[str], check) -> N
 	tab = f'{base}/players/{quote(name, safe="")}/advancements'
 	page.goto(tab)
 	page.locator('.tile').first.wait_for()
-	hrefs = page.evaluate("[...document.querySelectorAll('.tile')].map((tile) => tile.getAttribute('href'))")
+	hrefs = [href for tab in _across_tabs(page, "[...document.querySelectorAll('.tile')].map((tile) => tile.getAttribute('href'))")
+		for href in tab]
 	prefix = f'/players/{quote(name, safe="")}/advancements/'
 	check(hrefs and all(href.startswith(prefix) for href in hrefs),
 		f'the advancements tab still lists the tiles, and each leads to the player\'s own page ({len(hrefs)} tiles)')
 	path = advancement.replace(':', '/', 1)
+	tab_ids = [item['id'] for item in page.request.get(f'{base}/api/advancements').json()['tabs']]
+	page.locator('.tab-bar [role=tab]').nth(tab_ids.index(advancement.split(':')[1].split('/')[0])).click()
 	tile = page.locator(f'.tile[href="{prefix}{path}"]')
 	counter = f"{progress['done']} / {progress['total']}"
 	check(counter in tile.inner_text(), f'the tile of {advancement} shows its progress {counter}')
@@ -376,7 +391,7 @@ def _player_advancement_checks(browser, base: str, names: list[str], check) -> N
 	page.go_back()
 	page.wait_for_url(tab)
 	page.locator('.tile').first.wait_for()
-	check(page.locator('.tile').count() == len(hrefs), 'Back returns to the advancements tab')
+	check(page.locator('.tile').count() > 0, 'Back returns to the advancements tab')
 
 	# A finished single-step advancement says when; variants the game has no names for are named in German.
 	page.goto(f'{base}/players/{quote(names[0], safe="")}/advancements/minecraft/story/mine_stone')
@@ -411,4 +426,68 @@ def _player_advancement_checks(browser, base: str, names: list[str], check) -> N
 	page.goto(f'{base}/players/{quote(names[0], safe="")}/advancements/minecraft/no/such_thing')
 	check(_shows(page, 'This advancement does not exist.'), 'an unknown advancement on a player\'s page says so')
 	check(not errors, f'no JavaScript errors on players\' advancement pages ({"; ".join(errors[:3]) or "none"})')
+	page.context.close()
+
+
+def _tree_checks(browser, base: str, names: list[str], check) -> None:
+	"""CHANGELOG 1.4.0: advancements can be shown as the game's tree (a switch remembered per visitor), on a player's
+	advancements tab and on the advancements overview."""
+	page, errors = _page(browser)
+	name = quote(names[0], safe='')
+	player = page.request.get(f'{base}/api/players/{name}').json()
+	catalog = page.request.get(f'{base}/api/advancements').json()
+	page.goto(f'{base}/players/{name}/advancements')
+	page.locator('.tile').first.wait_for()
+	page.get_by_role('button', name='Tree').click()
+	page.locator('.tree-box').first.wait_for()
+	nodes = _across_tabs(page, """() => [...document.querySelectorAll('.tree-box .node')].map((node) => ({
+		href: node.getAttribute('href'), left: node.getBoundingClientRect().left,
+		gold: getComputedStyle(node.querySelector('.advancement-icon')).backgroundImage.includes('_frame_obtained') }))""")
+	flat = [node for tab in nodes for node in tab]
+	done = set(player['advancements']['ids'])
+	gold = {node['href'].split('/advancements/', 1)[1].replace('/', ':', 1) for node in flat if node['gold']}
+	check(len(nodes) == len(catalog['tabs']) and len(flat) == len(catalog['advancements']),
+		f'the tree shows every tab with all its advancements ({len(nodes)} tabs, {len(flat)} of {len(catalog["advancements"])})')
+	check(all(node['href'].startswith(f'/players/{name}/advancements/') for node in flat) and gold == done,
+		f'each leads to the player\'s page, gold exactly for the ones they have ({len(gold)} of {len(done)})')
+	lines = _across_tabs(page, "document.querySelectorAll('.tree-box svg rect').length")
+	roots = {item['tab']: item['id'] for item in catalog['advancements'] if not item.get('parent')}
+	leftmost = [min(tab, key=lambda node: node['left'])['href'].split('/advancements/', 1)[1].replace('/', ':', 1)
+		for tab in nodes]
+	check(all(count > 0 for count in lines) and set(leftmost) == set(roots.values()),
+		f'lines join the advancements, each tab\'s root is on the far left ({leftmost})')
+	page.locator('input.search').first.fill('diamond')
+	page.wait_for_timeout(600)
+	faded = page.locator('.tree-box .node.faded').count()
+	shown = page.locator('.tree-box .node').count()
+	check(0 < faded < shown, f'a search fades the others in the tree instead of hiding them ({shown - faded} of {shown} bright)')
+	page.locator('input.search').first.fill('')
+	page.get_by_text('Achieved only').click()
+	page.wait_for_timeout(600)
+	left = sum(_across_tabs(page, "document.querySelectorAll('.tree-box .node').length"))
+	check(left == len(done), f'with "Achieved only" the tree shows only the player\'s advancements ({left} of {len(done)})')
+	page.get_by_text('Achieved only').click()
+	page.reload()
+	page.locator('.tree-box').first.wait_for()
+	check(page.locator('.tile').count() == 0, 'the tree view is remembered after a reload')
+	page.goto(f'{base}/advancements')
+	page.locator('.tree-box').first.wait_for()
+	check(sum(_across_tabs(page, "document.querySelectorAll('.tree-box .node').length")) == len(catalog['advancements']),
+		'the advancements overview shows the tree too')
+	page.get_by_role('button', name='Tiles').click()
+	page.locator('.tile').first.wait_for()
+	check(page.locator('.tree-box').count() == 0, 'the switch goes back to tiles')
+	# One tab at a time, like the game's screen; a search shows every tab with matches and hides the tab bar.
+	shown_tabs = page.locator('.pack').count()
+	page.locator('.tab-bar [role=tab]').nth(1).click()
+	page.wait_for_timeout(300)
+	second = page.evaluate("[...document.querySelectorAll('.tile')].map((tile) => tile.getAttribute('href'))")
+	nether = [item['id'] for item in catalog['advancements'] if item['tab'] == catalog['tabs'][1]['id']]
+	check(page.locator('.tab-bar [role=tab]').count() == len(catalog['tabs']) and shown_tabs == 1
+		and len(second) == len(nether), f'a tab bar shows one advancement tab at a time ({len(second)} in the second)')
+	page.locator('input.search').first.fill('nether')
+	page.wait_for_timeout(600)
+	check(page.locator('.tab-bar').count() == 0 and page.locator('.pack').count() > 1,
+		f'a search shows every tab with matches ({page.locator(".pack").count()})')
+	check(not errors, f'no JavaScript errors in the tree view ({"; ".join(errors[:3]) or "none"})')
 	page.context.close()

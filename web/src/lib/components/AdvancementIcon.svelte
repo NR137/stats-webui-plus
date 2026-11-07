@@ -25,22 +25,24 @@
 </span>
 
 <style>
-	/* Like the game's advancement screen at GUI scale 3: a 26 pixel frame with the 16 pixel icon 5 pixels in, every
-	   game pixel exactly 3 screen pixels (in px, so it stays whole whatever the font size). */
+	/* Like the game's advancement screen: a 26 pixel frame with the 16 pixel icon 5 pixels in, every game pixel
+	   exactly --advancement-scale screen pixels (3 by default, the tree uses 2 on narrow screens; in px, so it stays
+	   whole whatever the font size). */
 	.advancement-icon {
+		--size: calc(26px * var(--advancement-scale, 3));
 		display: inline-grid;
 		place-items: center;
 		flex-shrink: 0;
-		width: 78px;
-		height: 78px;
-		background-size: 78px 78px;
+		width: var(--size);
+		height: var(--size);
+		background-size: var(--size) var(--size);
 		image-rendering: pixelated;
 	}
 
 	.advancement-icon :global(.frame),
 	.advancement-icon :global(.icon),
 	.advancement-icon :global(.letter) {
-		width: 48px;
-		height: 48px;
+		width: calc(16px * var(--advancement-scale, 3));
+		height: calc(16px * var(--advancement-scale, 3));
 	}
 </style>

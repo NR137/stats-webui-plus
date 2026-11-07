@@ -2,6 +2,10 @@
 	import { pageTitleTag } from '$lib/branding.svelte';
 	import { page } from '$app/state';
 	import AdvancementTiles from '$lib/components/AdvancementTiles.svelte';
+	import AdvancementTabBar from '$lib/components/AdvancementTabBar.svelte';
+	import AdvancementTree from '$lib/components/AdvancementTree.svelte';
+	import AdvancementViewSwitch from '$lib/components/AdvancementViewSwitch.svelte';
+	import { advancementView } from '$lib/advancementView.svelte';
 	import BackNav from '$lib/components/BackNav.svelte';
 	import Loader from '$lib/components/Loader.svelte';
 	import McItem from '$lib/components/McItem.svelte';
@@ -13,7 +17,7 @@
 	import {
 		advancementTabTitle,
 		compareAdvancementTitles,
-		matchesAdvancementQuery,
+		advancementMatch,
 		playerAdvancementHref
 	} from '$lib/advancements';
 	import { NotFoundError, getAdvancements, getLeaderboards, getPlayerProfile } from '$lib/api';
@@ -51,7 +55,8 @@
 	// The tab comes from the URL: /players/<name> (stats) or /players/<name>/advancements.
 	const profileTab = $derived(page.params.tab === 'advancements' ? 'advancements' : 'stats');
 	let openGroups = $state(closedGroups());
-	let openAdvancementTabs = $state<Record<string, boolean>>({});
+	// The advancement tab shown (one at a time, like the game's screen); during a search every tab with matches.
+	let advancementTab = $state('');
 	const filterQuery = deferredValue(() => query);
 
 	const searching = $derived(filterQuery.current.trim().length > 0);
@@ -87,16 +92,6 @@
 		openGroups = { ...openGroups, [group]: !openGroups[group] };
 	}
 
-	function isAdvancementOpen(tab: string) {
-		return searching || Boolean(openAdvancementTabs[tab]);
-	}
-
-	function toggleAdvancementTab(tab: string) {
-		if (searching) {
-			return;
-		}
-		openAdvancementTabs = { ...openAdvancementTabs, [tab]: !openAdvancementTabs[tab] };
-	}
 
 	$effect(() => {
 		const name = playerName;
@@ -114,7 +109,7 @@
 		hideZeros = { ...hideZerosByDefault };
 		achievedOnly = false;
 		openGroups = closedGroups();
-		openAdvancementTabs = {};
+		advancementTab = '';
 		Promise.all([
 			getPlayerProfile(name),
 			getAdvancements().catch(() => null),
@@ -125,9 +120,6 @@
 				catalog = advancements?.advancements ?? [];
 				advancementTabs = advancements?.tabs ?? [];
 				statCategories = boards?.categories ?? [];
-				openAdvancementTabs = Object.fromEntries(
-					(advancements?.tabs ?? []).map((tab) => [tab.id, true])
-				);
 				failed = false;
 			})
 			.catch((error) => {
@@ -207,16 +199,22 @@
 				const done = finished.length;
 				// Finished ones first, then the rest; both in title order.
 				const ordered = [...finished, ...items.filter((item) => !doneIds.has(item.id))];
-				const matched = ordered.filter((item) => {
-					if (achievedOnly && !doneIds.has(item.id)) {
-						return false;
-					}
-					return matchesAdvancementQuery(item.id, item.title, item.description, needle);
-				});
+				// Searching: title matches before ones found only by their description (sort keeps the order otherwise).
+				const matched = ordered
+					.filter((item) => !achievedOnly || doneIds.has(item.id))
+					.map((item) => ({ item, score: advancementMatch(item.id, item.title, item.description, needle) }))
+					.filter((entry) => entry.score > 0)
+					.sort((a, b) => b.score - a.score)
+					.map((entry) => entry.item);
 				return { tab, items, done, matched, ids: cappedResults(matched, searching) };
-			})
-			.filter((section) => section.matched.length > 0);
+			});
 	});
+	// One tab, or during a search every tab with matches.
+	const shownSections = $derived(
+		searching
+			? advancementSections.filter((section) => section.matched.length > 0)
+			: advancementSections.filter((section) => section.tab.id === (advancementTab || advancementTabs[0]?.id))
+	);
 </script>
 
 <svelte:head>
@@ -353,52 +351,72 @@
 					total: player.advancements?.total || catalog.length
 				})}</span
 			>
-			<label class="toggle">
-				<input type="checkbox" bind:checked={achievedOnly} />
-				{t('player.achievedOnly')}
-			</label>
+			<span class="view-tools">
+				<AdvancementViewSwitch />
+				<label class="toggle">
+					<input type="checkbox" bind:checked={achievedOnly} />
+					{t('player.achievedOnly')}
+				</label>
+			</span>
 		</div>
-		{#if advancementSections.length === 0}
-			<p class="muted">{player.advancements?.done ? t('player.noMatches') : t('player.noAdvancements')}</p>
-		{:else}
-			{#each advancementSections as section (section.tab.id + i18n.locale)}
-				<section class="pack">
-					<div class="pack-head">
-						<button
-							class="fold"
-							type="button"
-							aria-expanded={isAdvancementOpen(section.tab.id)}
-							onclick={() => toggleAdvancementTab(section.tab.id)}
-						>
-							<span class="chevron" class:open={isAdvancementOpen(section.tab.id)}>▸</span>
-							<span class="pack-title">
-								<McItem id={section.tab.icon} compact />
-								{advancementTabTitle(section.tab.id, section.tab.title)}
-								<span class="count"
-									>{t('advancements.doneOf', {
-										done: section.done,
-										total: section.items.length
-									})}</span
-								>
-							</span>
-						</button>
-					</div>
-					{#if isAdvancementOpen(section.tab.id)}
-						<AdvancementTiles
-							items={section.ids}
-							dim={(item) => !doneIds.has(item.id)}
-							obtained={(item) => doneIds.has(item.id)}
-							when={(item) => (doneTimes[item.id] ? formatWhen(doneTimes[item.id]) : undefined)}
-							href={(item) => playerAdvancementHref(player?.name ?? playerName ?? '', item.id)}
-							progress={(item) => {
-								const part = player?.advancements?.progress?.[item.id];
-								return part ? `${part.done} / ${part.total}` : undefined;
-							}}
-						/>
-					{/if}
-				</section>
-			{/each}
+		{#if !searching && advancementTabs.length > 0}
+			<AdvancementTabBar
+				label={t('advancements.tabs')}
+				tabs={advancementSections.map((section) => ({
+					...section.tab,
+					count: `${section.done}/${section.items.length}`
+				}))}
+				bind:selected={() => advancementTab || advancementTabs[0]?.id, (id) => (advancementTab = id)}
+			/>
 		{/if}
+		{#if searching && shownSections.length === 0}
+			<p class="muted">{t('player.noMatches')}</p>
+		{/if}
+		{#each shownSections as section (section.tab.id + i18n.locale)}
+			<section class="pack">
+				{#if searching}
+					<p class="pack-title">
+						<McItem id={section.tab.icon} compact />
+						{advancementTabTitle(section.tab.id, section.tab.title)}
+						<span class="count">{t('advancements.doneOf', { done: section.done, total: section.items.length })}</span>
+					</p>
+				{/if}
+				{#if section.matched.length === 0}
+					<p class="muted">{t('player.noneAchievedInTab')}</p>
+				{:else if advancementView.mode === 'tree'}
+					<!-- The whole tab, so the tree keeps its shape: what the search leaves out is faint, with
+					     "Achieved only" the rest is left out. -->
+					<AdvancementTree
+						items={section.items}
+						background={section.tab.background}
+						obtained={(item) => doneIds.has(item.id)}
+						href={(item) => playerAdvancementHref(player?.name ?? playerName ?? '', item.id)}
+						hidden={(item) => achievedOnly && !doneIds.has(item.id)}
+						faded={(item) => !section.matched.some((match) => match.id === item.id)}
+						detail={(item) => {
+							if (doneTimes[item.id]) {
+								return formatWhen(doneTimes[item.id]);
+							}
+							const part = player?.advancements?.progress?.[item.id];
+							return part ? `${part.done} / ${part.total}` : undefined;
+						}}
+					/>
+				{:else}
+					<AdvancementTiles
+						items={section.ids}
+						background={section.tab.background ?? ''}
+						dim={(item) => !doneIds.has(item.id)}
+						obtained={(item) => doneIds.has(item.id)}
+						when={(item) => (doneTimes[item.id] ? formatWhen(doneTimes[item.id]) : undefined)}
+						href={(item) => playerAdvancementHref(player?.name ?? playerName ?? '', item.id)}
+						progress={(item) => {
+							const part = player?.advancements?.progress?.[item.id];
+							return part ? `${part.done} / ${part.total}` : undefined;
+						}}
+					/>
+				{/if}
+			</section>
+		{/each}
 	{:else if player.vanilla}
 		{#each vanillaGroups as group (group + i18n.locale)}
 			{@const rows = player.vanilla[group] ?? []}
@@ -778,6 +796,14 @@
 	.count {
 		margin-left: 0.45rem;
 		font-size: 0.75rem;
+	}
+
+	.view-tools {
+		display: inline-flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: flex-end;
+		gap: 0.4rem 0.9rem;
 	}
 
 	.toggle {

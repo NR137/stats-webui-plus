@@ -7,6 +7,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **The game's advancement tree:** a switch "Tiles / Tree" on a player's advancements tab and on the advancements
+  overview shows each tab as in the game's advancement screen: its background, every advancement on its frame where
+  the game puts it (the mod reads the game's own layout), and the lines between them. Wider trees scroll sideways;
+  hovering an advancement shows a box with its title, description and date or progress, a click or tap opens it. A
+  search fades the rest instead of hiding it, "Achieved only" leaves the rest out. The choice is remembered in the
+  browser.
+- **The advancement search** looks at titles and descriptions in the visitor's language and the English title (no
+  longer at the hidden ID, which made "ad" find all of Adventure); words of one or two letters only where a word
+  starts, all words must match, accents don't matter, and title matches come first.
+- **Advancement tabs** (Minecraft, Nether, The End, Adventure, Husbandry) as a tab bar, one shown at a time like in
+  the game, instead of sections to fold; a search shows every tab with matches. In the tile view too, each tab's
+  tiles sit on its background from the game.
 - **A player's page for each advancement** (`/players/<name>/advancements/<id>`): when it was done, and for
   advancements with several parts which parts are done (with the date of each) and which are still missing, e.g. the
   biomes of Adventuring Time, the mobs of Monsters Hunted or the foods of A Balanced Diet. For "any one of these"

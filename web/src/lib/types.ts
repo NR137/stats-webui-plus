@@ -169,6 +169,10 @@ export type AdvancementInfo = {
 	hidden: boolean;
 	// Experience points the game gives for it; 0 for none.
 	experience?: number;
+	// Its parent in the game's tree (absent for a tab's root), and where the game puts it: column x, row y.
+	parent?: string;
+	x?: number;
+	y?: number;
 	holders: number;
 };
 
@@ -176,6 +180,8 @@ export type AdvancementTab = {
 	id: string;
 	title: string;
 	icon: string;
+	// The game's background texture of the tab ("stone", "nether", ...); absent for a data pack's own.
+	background?: string;
 };
 
 export type AdvancementsCatalogResponse = {

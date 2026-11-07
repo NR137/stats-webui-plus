@@ -2,6 +2,8 @@ package webui.stats.mc.stats;
 
 import net.minecraft.advancements.Advancement;
 import net.minecraft.advancements.AdvancementHolder;
+import net.minecraft.advancements.AdvancementNode;
+import net.minecraft.advancements.AdvancementTree;
 import net.minecraft.advancements.AdvancementType;
 import net.minecraft.advancements.DisplayInfo;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -58,6 +60,8 @@ public final class AdvancementCatalog {
 				advancement.parent().ifPresent(parent -> parents.put(id.toString(), parent));
 				advancement.display().ifPresent(display -> displays.put(id.toString(), display));
 			}
+			// The game lays the tree out on the server too (ServerAdvancementManager): column and row of each advancement.
+			AdvancementTree tree = server.getAdvancements().tree();
 			Map<String, AdvancementTab> tabMap = new LinkedHashMap<>();
 			for (AdvancementHolder holder : server.getAdvancements().getAllAdvancements()) {
 				Optional<DisplayInfo> display = holder.value().display();
@@ -74,7 +78,8 @@ public final class AdvancementCatalog {
 						new AdvancementTab(
 							tab,
 							root != null ? plain(root.title()) : tab,
-							root != null ? itemId(root.icon()) : itemId(info.icon())
+							root != null ? itemId(root.icon()) : itemId(info.icon()),
+							root != null ? background(root) : null
 						)
 					);
 				}
@@ -87,7 +92,10 @@ public final class AdvancementCatalog {
 						itemId(info.icon()),
 						frame(info.type()),
 						info.hidden(),
-						holder.value().rewards().experience()
+						holder.value().rewards().experience(),
+						treeParent(tree, holder),
+						tree.get(holder) != null ? tree.get(holder).x() : 0,
+						tree.get(holder) != null ? tree.get(holder).y() : 0
 					)
 				);
 			}
@@ -193,6 +201,25 @@ public final class AdvancementCatalog {
 			}
 		}
 		return shown;
+	}
+
+	/** The parent in the game's tree, if it is shown (has a display); null for a root. */
+	private static String treeParent(AdvancementTree tree, AdvancementHolder holder) {
+		AdvancementNode node = tree.get(holder);
+		AdvancementNode parent = node != null ? node.parent() : null;
+		while (parent != null && parent.holder().value().display().isEmpty()) {
+			parent = parent.parent();
+		}
+		return parent != null ? parent.holder().id().toString() : null;
+	}
+
+	/** "stone" for the vanilla background gui/advancements/backgrounds/stone; null for any other (a data pack's). */
+	private static String background(DisplayInfo root) {
+		return root.background()
+			.map(texture -> texture.id())
+			.filter(id -> id.getNamespace().equals("minecraft") && id.getPath().startsWith("gui/advancements/backgrounds/"))
+			.map(id -> id.getPath().substring("gui/advancements/backgrounds/".length()))
+			.orElse(null);
 	}
 
 	private static String frame(AdvancementType type) {

@@ -1,9 +1,19 @@
 <script lang="ts">
 	import { pageTitleTag } from '$lib/branding.svelte';
-	import { advancementTabTitle, compareAdvancementTitles, matchesAdvancementQuery } from '$lib/advancements';
+	import {
+		advancementHref,
+		advancementMatch,
+		advancementTabTitle,
+		compareAdvancementTitles,
+		matchesAdvancementQuery
+	} from '$lib/advancements';
 	import { boardHint, i18n, pageTitle, t } from '$lib/i18n/i18n.svelte';
 	import { getAdvancementMost, getAdvancements } from '$lib/api';
 	import AdvancementTiles from '$lib/components/AdvancementTiles.svelte';
+	import AdvancementTabBar from '$lib/components/AdvancementTabBar.svelte';
+	import AdvancementTree from '$lib/components/AdvancementTree.svelte';
+	import AdvancementViewSwitch from '$lib/components/AdvancementViewSwitch.svelte';
+	import { advancementView } from '$lib/advancementView.svelte';
 	import HomePodium from '$lib/components/HomePodium.svelte';
 	import Loader from '$lib/components/Loader.svelte';
 	import McItem from '$lib/components/McItem.svelte';
@@ -18,7 +28,8 @@
 	let failed = $state(false);
 	let loaded = $state(false);
 	let query = $state('');
-	let openTabs = $state<Record<string, boolean>>({});
+	// The tab shown (one at a time, like the game's screen); during a search every tab with matches.
+	let selectedTab = $state('');
 	const filterQuery = deferredValue(() => query);
 	const searching = $derived(filterQuery.current.trim().length > 0);
 	const hint = $derived(boardHint('advancements'));
@@ -32,7 +43,6 @@
 				tabs = data.tabs;
 				total = data.total;
 				ranking = most;
-				openTabs = Object.fromEntries(data.tabs.map((tab) => [tab.id, true]));
 			})
 			.catch(() => {
 				failed = true;
@@ -42,16 +52,6 @@
 			});
 	});
 
-	function isOpen(tab: string) {
-		return searching || Boolean(openTabs[tab]);
-	}
-
-	function toggleTab(tab: string) {
-		if (searching) {
-			return;
-		}
-		openTabs = { ...openTabs, [tab]: !openTabs[tab] };
-	}
 
 	const sections = $derived.by(() => {
 		void i18n.locale;
@@ -65,15 +65,26 @@
 							matchesAdvancementQuery(item.id, item.title, item.description, needle)
 					)
 					.sort(compareAdvancementTitles);
-				// Ones at least one player finished first, then the rest; both in title order.
+				// Ones at least one player finished first, then the rest; both in title order. Searching: title matches
+				// before ones found only by their description (sort keeps the order otherwise).
 				const matched = [
 					...items.filter((item) => (item.holders ?? 0) > 0),
 					...items.filter((item) => !item.holders)
-				];
-				return { tab, matched, ids: cappedResults(matched, searching) };
-			})
-			.filter((section) => section.matched.length > 0);
+				].sort(
+					(a, b) =>
+						advancementMatch(b.id, b.title, b.description, needle) -
+						advancementMatch(a.id, a.title, a.description, needle)
+				);
+				const all = catalog.filter((item) => item.tab === tab.id);
+				return { tab, all, matched, ids: cappedResults(matched, searching) };
+			});
 	});
+	// One tab, or during a search every tab with matches.
+	const shownSections = $derived(
+		searching
+			? sections.filter((section) => section.matched.length > 0)
+			: sections.filter((section) => section.tab.id === (selectedTab || tabs[0]?.id))
+	);
 </script>
 
 <svelte:head>
@@ -97,34 +108,43 @@
 
 	<div class="filters">
 		<SearchField bind:value={query} placeholder={t('advancements.search')} />
+		<AdvancementViewSwitch />
 	</div>
 
-	{#if sections.length > 0}
-		{#each sections as section}
+	{#if !searching && tabs.length > 0 && total > 0}
+		<AdvancementTabBar
+			label={t('advancements.tabs')}
+			tabs={sections.map((section) => ({ ...section.tab, count: String(section.all.length) }))}
+			bind:selected={() => selectedTab || tabs[0]?.id, (id) => (selectedTab = id)}
+		/>
+	{/if}
+	{#if shownSections.length > 0 && total > 0}
+		{#each shownSections as section (section.tab.id)}
 			<section class="pack">
-				<div class="pack-head">
-					<button
-						class="fold"
-						type="button"
-						aria-expanded={isOpen(section.tab.id)}
-						onclick={() => toggleTab(section.tab.id)}
-					>
-						<span class="chevron" class:open={isOpen(section.tab.id)}>▸</span>
-						<span class="pack-title">
-							<McItem id={section.tab.icon} compact />
-							{advancementTabTitle(section.tab.id, section.tab.title)}
-							<span class="count"
-								>{t('player.shown', {
-									shown: section.ids.length,
-									total: catalog.filter((item) => item.tab === section.tab.id).length
-								})}</span
-							>
-						</span>
-					</button>
-				</div>
-				{#if isOpen(section.tab.id)}
+				{#if searching}
+					<p class="pack-title">
+						<McItem id={section.tab.icon} compact />
+						{advancementTabTitle(section.tab.id, section.tab.title)}
+						<span class="count">{t('player.shown', { shown: section.ids.length, total: section.all.length })}</span>
+					</p>
+				{/if}
+				{#if advancementView.mode === 'tree'}
+					<!-- The whole tab, so the tree keeps its shape; what the search leaves out is faint. -->
+					<AdvancementTree
+						items={section.all}
+						background={section.tab.background}
+						obtained={(item) => ((item as { holders?: number }).holders ?? 0) > 0}
+						href={(item) => advancementHref(item.id)}
+						faded={(item) => !section.matched.some((match) => match.id === item.id)}
+						detail={(item) => {
+							const holders = (item as { holders?: number }).holders ?? 0;
+							return holders === 1 ? t('advancements.holder') : t('advancements.holders', { count: holders });
+						}}
+					/>
+				{:else}
 					<AdvancementTiles
 						items={section.ids}
+						background={section.tab.background ?? ''}
 						dim={(item) => Boolean(item.hidden)}
 						obtained={(item) => (item.holders ?? 0) > 0}
 						showHolders
@@ -164,55 +184,19 @@
 	}
 
 	.filters {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem;
 		margin: 0 0 1.1rem;
+	}
+
+	.filters > :global(:first-child) {
+		flex: 1 1 14rem;
 	}
 
 	.pack {
 		margin-top: 0.55rem;
-	}
-
-	.pack-head {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: baseline;
-		justify-content: space-between;
-		gap: 0.6rem 1rem;
-		margin: 0 0 0.7rem;
-	}
-
-	.fold {
-		display: inline-flex;
-		align-items: baseline;
-		gap: 0.4rem;
-		min-height: 0;
-		padding: 0;
-		color: var(--color-muted);
-		font: inherit;
-		text-align: left;
-		text-shadow: inherit;
-		background: none;
-		border: none;
-		box-shadow: none;
-		cursor: pointer;
-	}
-
-	.fold:hover,
-	.fold:focus-visible {
-		color: var(--color-hover);
-		background: none;
-		border: none;
-		box-shadow: none;
-	}
-
-	.chevron {
-		display: inline-block;
-		color: var(--color-gold);
-		transform: rotate(0deg);
-		transition: transform 0.12s linear;
-	}
-
-	.chevron.open {
-		transform: rotate(90deg);
 	}
 
 	.pack-title {

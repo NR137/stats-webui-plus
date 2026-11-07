@@ -8,7 +8,8 @@
 		showHolders = false,
 		when,
 		href,
-		progress
+		progress,
+		background
 	}: {
 		items: Array<{
 			id: string;
@@ -28,10 +29,16 @@
 		href?: (item: { id: string }) => string;
 		// E.g. "23 / 56" for an unfinished advancement with several parts.
 		progress?: (item: { id: string }) => string | undefined;
+		// The tab's background texture in the game ("stone", ...), behind the tiles like behind its tree.
+		background?: string;
 	} = $props();
 </script>
 
-<div class="tiles">
+<div
+	class="tiles"
+	class:framed={background !== undefined}
+	style:background-image={background !== undefined ? `url(/mc/advancement/backgrounds/${background || 'stone'}.png)` : undefined}
+>
 	{#each items as item (item.id)}
 		<AdvancementTile
 			{item}
@@ -46,6 +53,14 @@
 </div>
 
 <style>
+	/* Behind the tiles, the tab's background as in the game (16 pixel blocks at 3x, like the tree). */
+	.tiles.framed {
+		padding: 0.6rem;
+		background-size: 48px;
+		image-rendering: pixelated;
+		border: 2px solid var(--color-border);
+	}
+
 	.tiles {
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));

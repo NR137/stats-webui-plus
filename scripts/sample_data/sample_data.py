@@ -230,6 +230,18 @@ def advancement_file(chosen, first, last, style='newcomer', name=''):
 					'done': True}
 			moment += timedelta(minutes=local.randint(1, 90))
 		chosen = [*chosen, 'minecraft:adventure/root', 'minecraft:adventure/kill_a_mob']
+	# Advancements don't need the ones before them in the tree: the newcomer found a diamond in a village chest
+	# ("Diamonds!") before ever making an iron pickaxe ("Isn't It Iron Pick?"). Random numbers of its own, so it
+	# changes nothing else, not even the newcomer's progress below.
+	if style == 'newcomer' and 'minecraft:story/mine_diamond' not in body:
+		found = random.Random(f'diamond {name}')
+		moment = min(last, first + (last - first) * found.uniform(0.5, 0.9))
+		_, criteria, requirements = ADVANCEMENTS['minecraft:story/mine_diamond']
+		body['minecraft:story/mine_diamond'] = {
+			'criteria': {pick_option(found, 'minecraft:story/mine_diamond', group): stamp(moment) for group in requirements},
+			'done': True,
+		}
+		chosen = [*chosen, 'minecraft:story/mine_diamond']
 	# Unfinished advancements with several parts, as far as the play style got (the game records them all along).
 	for adv in ORDER:
 		_, criteria, requirements = ADVANCEMENTS[adv]

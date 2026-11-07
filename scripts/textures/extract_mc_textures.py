@@ -1051,6 +1051,9 @@ def copy_pngs(jar: zipfile.ZipFile) -> None:
 		elif name.startswith("assets/minecraft/textures/gui/sprites/advancements/") and "_frame_" in name:
 			# The background shapes of advancements: task, goal and challenge, each obtained and unobtained.
 			dest = STATIC / "advancement" / Path(name).name
+		elif name.startswith("assets/minecraft/textures/gui/advancements/backgrounds/"):
+			# Each advancement tab's background (stone, nether, end, adventure, husbandry), tiled behind its tree.
+			dest = STATIC / "advancement" / "backgrounds" / Path(name).name
 		elif name == "assets/minecraft/textures/entity/chest/normal.png":
 			dest = STATIC / "entity" / "chest.png"
 		elif name == "assets/minecraft/textures/entity/chest/ender.png":

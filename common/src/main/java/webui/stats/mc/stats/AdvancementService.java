@@ -24,6 +24,7 @@ public final class AdvancementService {
 			item.put("id", tab.id());
 			item.put("title", tab.title());
 			item.put("icon", tab.icon());
+			item.put("background", tab.background());
 			tabs.add(item);
 		}
 		List<Map<String, Object>> items = new ArrayList<>();
@@ -144,6 +145,9 @@ public final class AdvancementService {
 		item.put("frame", info.frame());
 		item.put("hidden", info.hidden());
 		item.put("experience", info.experience());
+		item.put("parent", info.parent());
+		item.put("x", info.x());
+		item.put("y", info.y());
 		return item;
 	}
 
