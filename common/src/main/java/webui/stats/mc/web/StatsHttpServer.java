@@ -26,7 +26,6 @@ public final class StatsHttpServer {
 	private volatile WebConfig config = WebConfig.defaults();
 	private volatile ApiHandler apiHandler = new ApiHandler(config);
 	private final StaticHandler staticHandler = new StaticHandler();
-	private final ServerIconHandler serverIconHandler = new ServerIconHandler();
 	private final MojangProxy mojangProxy = new MojangProxy();
 	private HttpServer httpServer;
 	private ThreadPoolExecutor executor;
@@ -187,8 +186,8 @@ public final class StatsHttpServer {
 					HttpJson.error(exchange, 404, "not_found", "Unknown endpoint");
 					return;
 				}
-				if ("/server-icon.png".equals(path)) {
-					serverIconHandler.handle(exchange);
+				if (FaviconHandler.PATH.equals(path)) {
+					FaviconHandler.handle(exchange);
 					return;
 				}
 				if (HeaderImageHandler.PATH.equals(path)) {

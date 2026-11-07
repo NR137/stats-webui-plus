@@ -17,7 +17,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.jar.JarFile;
-import java.util.zip.CRC32;
 import java.util.zip.ZipException;
 import java.util.stream.Stream;
 
@@ -111,37 +110,14 @@ public final class StaticHandler {
 		}
 
 		byte[] body = bytes;
-		String etag = etags.computeIfAbsent(resource, key -> etag(body));
+		String etag = etags.computeIfAbsent(resource, key -> HttpJson.etag(body));
 		exchange.getResponseHeaders().set("ETag", etag);
-		if (matches(exchange.getRequestHeaders().getFirst("If-None-Match"), etag)) {
+		if (HttpJson.matches(exchange.getRequestHeaders().getFirst("If-None-Match"), etag)) {
 			exchange.getResponseHeaders().set("Cache-Control", cacheControl(resource));
 			HttpJson.empty(exchange, 304);
 			return;
 		}
 		send(exchange, 200, mime(resource), bytes, head, resource);
-	}
-
-	private static String etag(byte[] bytes) {
-		CRC32 crc = new CRC32();
-		crc.update(bytes);
-		return "\"" + Long.toHexString(crc.getValue()) + "-" + Integer.toHexString(bytes.length) + "\"";
-	}
-
-	/** If-None-Match may list several tags, and proxies that compress the file mark them weak (W/"..."). */
-	private static boolean matches(String ifNoneMatch, String etag) {
-		if (ifNoneMatch == null) {
-			return false;
-		}
-		for (String candidate : ifNoneMatch.split(",")) {
-			String tag = candidate.trim();
-			if (tag.startsWith("W/")) {
-				tag = tag.substring(2);
-			}
-			if (tag.equals(etag) || tag.equals("*")) {
-				return true;
-			}
-		}
-		return false;
 	}
 
 	private static String cacheControl(String resource) {

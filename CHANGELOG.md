@@ -7,6 +7,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Custom pages:** pages of the server owner's own, e.g. an imprint, a privacy policy or the server rules, as many as
+  wanted. Each is an entry in the config's new `pages` list (an ID, a label per language, and whether its link goes
+  in the footer next to How we rank or in the menu after the menu links; either way it opens in the same tab, at
+  `/pages/<id>`) and a Markdown, HTML or text file per language in `config/stats_webui_plus/pages/<id>/`. Visitors
+  get the first of their languages there is a file for (as for all texts), else a file for every language
+  (`page.md`). Scripts, styles and forms in the files are removed. Browsers keep a page and only check whether it
+  changed (ETag). Three samples come with a new config, switched off (`"enabled": false`) until filled in: an imprint
+  and a privacy policy (templates with placeholders; the privacy policy already says what the website itself does)
+  in the footer, and example rules in the menu, each written in all four languages on first start. Markdown is
+  rendered with marked (MIT) and cleaned with DOMPurify (Apache-2.0), both loaded only on these pages.
 - **The game's advancement tree:** a switch "Tiles / Tree" on a player's advancements tab and on the advancements
   overview shows each tab as in the game's advancement screen: its background, every advancement on its frame where
   the game puts it (the mod reads the game's own layout), and the lines between them. Wider trees scroll sideways;
@@ -86,6 +96,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Long words in tiles (e.g. "Scharfschützenduell", "Diamantspitzhacke") broke anywhere without a hyphen; there they
   are now hyphenated from 10 letters on.
 - Tooltips are opaque, so they are easier to read.
+- **The favicon** is at one fixed address, `/favicon`: the Minecraft server's icon (`server-icon.png`, the one the
+  game's server list shows) if it has one, else the web UI's own. Servers without an icon no longer cause an error in
+  the browser console on every page load, and the icon no longer depends on a script swapping it after the page
+  loaded (which Safari doesn't follow). A new or removed server icon shows up on the next visit.
+- Texts per language in the config (site heading, slogan, tagline, window title, link labels) now pick their
+  language as the UI does: the visitor's languages in order (the switcher's, then all of the browser's), then the
+  server's `defaultLanguage`, then English. Before, they used only the UI's language and then English, so a
+  visitor whose browser prefers French, then German, saw the English text where there was no French one.
 
 - Voluntary Exile and Hero of the Village show the Ominous Banner, as in the game, instead of a white banner. The
   texture script takes such specially named icons from minecraft.wiki.

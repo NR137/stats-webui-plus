@@ -9,8 +9,8 @@ import java.util.Map;
 /**
  * Config text that is either one String or a Map of language code to text ({"en": "Map", "de": "Karte"}).
  * Sent to the web UI as-is; the UI picks the visitor's language. An empty text in the Map means "not set" for that
- * language (it falls back to English, then to the first text given); empty entries are kept so a config can list
- * every language as a template.
+ * language (it falls back to the default language, then English, then the first text given); empty entries are kept
+ * so a config can list every language as a template.
  */
 public final class LocalizedText {
 	private LocalizedText() {

@@ -1,12 +1,11 @@
 <script lang="ts">
-	import fallbackFavicon from '$lib/assets/favicon.svg';
 	import Icon from '$lib/components/Icon.svelte';
 	import { closeMenu, headerMenu, registerMenuRoot, toggleMenu } from '$lib/components/headerMenu.svelte';
 	import LanguageSwitcher from '$lib/components/LanguageSwitcher.svelte';
 	import StatusBar from '$lib/components/StatusBar.svelte';
 	import ThemeSwitcher from '$lib/components/ThemeSwitcher.svelte';
-	import { branding, hasSiteHeading, linkLabel, loadBranding, localizedText } from '$lib/branding.svelte';
-	import { applyLocaleSettings, i18n, localeSettings, t } from '$lib/i18n/i18n.svelte';
+	import { branding, hasSiteHeading, linkLabel, loadBranding, localizedText, pageLabel } from '$lib/branding.svelte';
+	import { applyLocaleSettings, i18n, languageOrder, localeSettings, t } from '$lib/i18n/i18n.svelte';
 	import { loadNames } from '$lib/mc/names.svelte';
 	import '$lib/theme/theme.css';
 	import '$lib/theme/theme.svelte';
@@ -16,7 +15,6 @@
 
 	let { children } = $props();
 
-	let faviconHref = $state('/server-icon.png');
 	let headerImageFailed = $state(false);
 
 	$effect(() => {
@@ -40,17 +38,9 @@
 		loadNames(i18n.locale);
 	});
 
-	$effect(() => {
-		const image = new Image();
-		image.onerror = () => {
-			faviconHref = fallbackFavicon;
-		};
-		image.src = '/server-icon.png';
-	});
-
-	const siteHeading = $derived(localizedText(branding.siteHeading, i18n.locale));
-	const tagline = $derived(localizedText(branding.siteHeadingTagline, i18n.locale));
-	const slogan = $derived(localizedText(branding.siteHeadingSlogan, i18n.locale));
+	const siteHeading = $derived(localizedText(branding.siteHeading, languageOrder()));
+	const tagline = $derived(localizedText(branding.siteHeadingTagline, languageOrder()));
+	const slogan = $derived(localizedText(branding.siteHeadingSlogan, languageOrder()));
 	// Without a site heading there is nothing to put the image between, so it goes on top.
 	const imagePosition = $derived(hasSiteHeading() ? branding.headerImagePosition : 'top');
 
@@ -67,7 +57,7 @@
 	// The room under the heading is kept for the longest tagline of all languages, so switching the language never
 	// changes the header's height.
 	const allTaglines = $derived(
-		localeSettings.enabled.map((locale) => localizedText(branding.siteHeadingTagline, locale)).filter(Boolean)
+		localeSettings.enabled.map((locale) => localizedText(branding.siteHeadingTagline, languageOrder(locale))).filter(Boolean)
 	);
 	const MEASURE_SIZE = 80;
 	const measureContext = typeof document === 'undefined' ? null : document.createElement('canvas').getContext('2d');
@@ -140,13 +130,27 @@
 
 	// On phones the pages are behind one button that names the current page; it closes after choosing one.
 	const menuOpen = $derived(headerMenu.open === 'nav');
-	const currentPage = $derived(links.find((link) => active(link.href))?.label ?? t('nav.menu'));
+
+	// The server owner's own pages (config pages): in the menu after the custom links, but in this tab; or in the
+	// footer next to How we rank.
+	const menuPages = $derived(branding.pages.filter((entry) => entry.place === 'menu'));
+	const footerPages = $derived(branding.pages.filter((entry) => entry.place === 'footer'));
+	const currentPage = $derived(
+		links.find((link) => active(link.href))?.label ??
+			menuPages
+				.filter((entry) => active(`/pages/${entry.id}`))
+				.map((entry) => pageLabel(entry, languageOrder()))[0] ??
+			t('nav.menu')
+	);
 
 	// Custom link buttons are all as wide as the longest label in any enabled language (between 8 and 16rem), so a
 	// language switch never changes the row; only labels longer than that wrap. The labels come from the server's
 	// config, so this is measured in the browser, in the buttons' font (0.85rem, see .links below).
 	const linkLabels = $derived(
-		branding.links.flatMap((link) => localeSettings.enabled.map((locale) => linkLabel(link, locale)))
+		localeSettings.enabled.flatMap((locale) => [
+			...branding.links.map((link) => linkLabel(link, languageOrder(locale))),
+			...menuPages.map((entry) => pageLabel(entry, languageOrder(locale)))
+		])
 	);
 	let linkWidth = $state(0);
 
@@ -175,7 +179,6 @@
 </script>
 
 <svelte:head>
-	<link rel="icon" href={faviconHref} />
 	<title>{siteHeading || t('home.heading')}</title>
 	{#if slogan}
 		<meta name="description" content={slogan} />
@@ -259,7 +262,7 @@
 						>
 					{/each}
 				</nav>
-				{#if branding.links.length > 0}
+				{#if branding.links.length > 0 || menuPages.length > 0}
 					<nav class="links" aria-label={t('nav.links')}>
 						{#each branding.links as link}
 							<a
@@ -267,7 +270,16 @@
 								href={link.url}
 								target={link.newTab ? '_blank' : undefined}
 								rel={link.newTab ? 'noopener noreferrer' : undefined}
-								onclick={closeMenu}>{linkLabel(link, i18n.locale)}</a
+								onclick={closeMenu}>{linkLabel(link, languageOrder())}</a
+							>
+						{/each}
+						{#each menuPages as entry (entry.id)}
+							<a
+								class="mc-btn"
+								class:on={active(`/pages/${entry.id}`)}
+								aria-current={active(`/pages/${entry.id}`) ? 'page' : undefined}
+								href="/pages/{entry.id}"
+								onclick={closeMenu}>{pageLabel(entry, languageOrder())}</a
 							>
 						{/each}
 					</nav>
@@ -283,7 +295,14 @@
 		{@render children()}
 	</main>
 	<footer class="credit">
-		<p class="footer-links"><a href="/about">{t('nav.about')}</a></p>
+		<p class="footer-links">
+			<a href="/about" aria-current={active('/about') ? 'page' : undefined}>{t('nav.about')}</a>
+			{#each footerPages as entry (entry.id)}
+				<a href="/pages/{entry.id}" aria-current={active(`/pages/${entry.id}`) ? 'page' : undefined}
+					>{pageLabel(entry, languageOrder())}</a
+				>
+			{/each}
+		</p>
 		<p>{#each credit as part}{#if typeof part === 'string'}{part}{:else}<a
 					href={part.url}
 					target="_blank"
@@ -482,7 +501,12 @@
 		margin: 0;
 	}
 
+	/* How we rank and the server owner's footer pages (imprint, privacy policy, ...), wrapping on phones. */
 	.credit .footer-links {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: center;
+		gap: 0.5rem 1.5rem;
 		margin-bottom: 1.25rem;
 		font-size: 0.9rem;
 	}

@@ -77,6 +77,33 @@ describe('language detection', () => {
 	});
 });
 
+// README, Text per language: one order everywhere, the switcher's language, the browser's languages, defaultLanguage,
+// English. The UI takes the first it offers, config texts and custom pages the first they have.
+describe('languageOrder', () => {
+	it("is the browser's languages, then the server's default, then English", async () => {
+		browser(['it-IT', 'de-DE', 'fr']);
+		const { languageOrder, applyLocaleSettings, i18n } = await load();
+		applyLocaleSettings('es', ['de', 'en', 'es', 'fr']);
+		expect(languageOrder()).toEqual(['it', 'de', 'fr', 'es', 'en']);
+		// The UI offers no Italian: German, the next one.
+		expect(i18n.locale).toBe('de');
+	});
+
+	it('starts with the language picked in the switcher', async () => {
+		browser(['de-DE'], 'fr');
+		const { languageOrder, setLocale } = await load();
+		expect(languageOrder()).toEqual(['fr', 'de', 'en']);
+		setLocale('es');
+		expect(languageOrder()).toEqual(['es', 'de', 'en']);
+	});
+
+	it('can say what the order would be with another language picked', async () => {
+		browser(['de-DE']);
+		const { languageOrder } = await load();
+		expect(languageOrder('fr')).toEqual(['fr', 'de', 'en']);
+	});
+});
+
 describe('remembering the language', () => {
 	it('detection alone stores nothing', async () => {
 		const storage = browser(['de']);

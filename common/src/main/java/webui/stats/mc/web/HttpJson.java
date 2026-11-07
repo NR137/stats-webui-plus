@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.zip.CRC32;
 
 public final class HttpJson {
 	private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
@@ -48,6 +49,46 @@ public final class HttpJson {
 		} catch (IOException e) {
 			throw new ConnectionLost(e);
 		}
+	}
+
+	/**
+	 * Like {@link #send}, with an ETag of the body: a browser that has this answer already gets an empty 304 instead.
+	 * For answers that are cheap to make but may be big, so revalidating saves the transfer (custom pages).
+	 */
+	public static void sendRevalidated(HttpExchange exchange, Object body, String cacheControl) throws IOException {
+		byte[] bytes = GSON.toJson(body).getBytes(StandardCharsets.UTF_8);
+		String etag = etag(bytes);
+		exchange.getResponseHeaders().set("ETag", etag);
+		exchange.getResponseHeaders().set("Cache-Control", cacheControl);
+		if (matches(exchange.getRequestHeaders().getFirst("If-None-Match"), etag)) {
+			empty(exchange, 304);
+			return;
+		}
+		exchange.getResponseHeaders().set("Content-Type", "application/json; charset=utf-8");
+		respond(exchange, 200, bytes);
+	}
+
+	static String etag(byte[] bytes) {
+		CRC32 crc = new CRC32();
+		crc.update(bytes);
+		return "\"" + Long.toHexString(crc.getValue()) + "-" + Integer.toHexString(bytes.length) + "\"";
+	}
+
+	/** If-None-Match may list several tags, and proxies that compress the file mark them weak (W/"..."). */
+	static boolean matches(String ifNoneMatch, String etag) {
+		if (ifNoneMatch == null) {
+			return false;
+		}
+		for (String candidate : ifNoneMatch.split(",")) {
+			String tag = candidate.trim();
+			if (tag.startsWith("W/")) {
+				tag = tag.substring(2);
+			}
+			if (tag.equals(etag) || tag.equals("*")) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/** A response without a body (304, 404, 405, ...). */

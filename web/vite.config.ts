@@ -2,7 +2,6 @@
 import adapter from '@sveltejs/adapter-static';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
-import { serverIcon } from './server-icon-plugin.js';
 
 // The running mod; in compose.yaml the dev server's container.
 const api = process.env.STATS_API_URL ?? 'http://127.0.0.1:25580';
@@ -14,8 +13,9 @@ export default defineConfig({
 			// The mod's API and its Mojang proxy (skin cache, default skins for players without one of their own).
 			'/api': api,
 			'/mojang': api,
-			// The configured header image (config headerImage).
-			'/header-image': api
+			// The configured header image (config headerImage) and the favicon (the Minecraft server's icon or ours).
+			'/header-image': api,
+			'^/favicon$': api
 		}
 	},
 	preview: {
@@ -25,7 +25,6 @@ export default defineConfig({
 		include: ['src/**/*.test.ts']
 	},
 	plugins: [
-		serverIcon(),
 		sveltekit({
 			compilerOptions: {
 				runes: ({ filename }) =>
@@ -38,6 +37,16 @@ export default defineConfig({
 			// default is the build time. yarn dev on its own keeps that default.
 			version: {
 				name: process.env.STATS_WEBUI_VERSION
+			},
+			prerender: {
+				// /favicon is answered by the mod (the Minecraft server's icon or ours), not by a file of this build, so
+				// the prerender's crawl can't find it; every other missing link still fails the build.
+				handleHttpError: ({ path, message }) => {
+					if (path === '/favicon') {
+						return;
+					}
+					throw new Error(message);
+				}
 			},
 			adapter: adapter({
 				pages: 'build',

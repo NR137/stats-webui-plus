@@ -26,6 +26,8 @@
 		"vitest": "^4.1.12"
 	},
 	"dependencies": {
-		"@daidr/minecraft-skin-renderer": "^0.3.2"
+		"@daidr/minecraft-skin-renderer": "^0.3.2",
+		"dompurify": "^3.4.17",
+		"marked": "^18.1.3"
 	}
 }

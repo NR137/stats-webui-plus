@@ -7,30 +7,34 @@ import { formatWindowTitle } from '$lib/branding.svelte';
 
 const dictionaries: Record<Locale, Record<MessageKey, string>> = { es, en, fr, de };
 
-// Used when the visitor hasn't picked a language and none of their browser languages is supported.
-// Replaced by the server's defaultLanguage once /api/status has loaded (see applyLocaleSettings).
-let fallbackLocale: Locale = 'en';
-
-// Languages the server offers (config "languages"); all of them until /api/status says otherwise.
-export const localeSettings = $state<{ enabled: Locale[] }>({ enabled: [...locales] });
+export const localeSettings = $state<{ enabled: Locale[]; fallback: Locale }>({
+	// Languages the server offers (config "languages"); all of them until /api/status says otherwise.
+	enabled: [...locales],
+	// The server's defaultLanguage (see applyLocaleSettings); English until /api/status has loaded.
+	fallback: 'en'
+});
 
 function isEnabled(locale: Locale): boolean {
 	return localeSettings.enabled.includes(locale);
 }
 
-/** First supported language in the browser's preference list (e.g. ["de-DE", "en-US"] -> "en"). */
-function browserLocale(): Locale | null {
+/** The browser's preferred languages in order, as language codes (["de-DE", "en-US"] -> ["de", "en"]). */
+function browserLanguages(): string[] {
 	if (typeof navigator === 'undefined') {
-		return null;
+		return [];
 	}
 	const preferred = navigator.languages?.length ? navigator.languages : [navigator.language];
-	for (const tag of preferred) {
-		const language = tag?.slice(0, 2).toLowerCase();
-		if (isLocale(language) && isEnabled(language)) {
-			return language;
-		}
-	}
-	return null;
+	return preferred.map((tag) => (tag ?? '').split(/[-_]/)[0].toLowerCase()).filter((code) => /^[a-z]{2,3}$/.test(code));
+}
+
+/**
+ * The one order in which languages are tried, everywhere: the language picked in the switcher (or, with `picked`,
+ * the one about to be), the browser's preferred languages, the server's defaultLanguage, English. The UI uses the
+ * first of them it offers; config texts (site heading, link labels, ...) and custom pages the first they have.
+ */
+export function languageOrder(picked: string | null = i18n.picked): string[] {
+	const order = [picked, ...browserLanguages(), localeSettings.fallback, 'en'];
+	return [...new Set(order.filter((code): code is string => !!code))];
 }
 
 function readStored(): Locale | null {
@@ -50,13 +54,18 @@ function persist(next: Locale) {
 	}
 }
 
-function initialLocale(): Locale {
-	return readStored() ?? browserLocale() ?? fallbackLocale;
+/** The first language of languageOrder() the UI offers. */
+function uiLocale(picked: Locale | null): Locale {
+	const offered = languageOrder(picked).find((code): code is Locale => isLocale(code) && isEnabled(code));
+	return offered ?? localeSettings.enabled[0];
 }
 
-export const i18n = $state({
-	locale: initialLocale()
+export const i18n = $state<{ locale: Locale; picked: Locale | null }>({
+	locale: 'en',
+	// Only a language picked in the switcher (saved in the browser), else null.
+	picked: readStored()
 });
+i18n.locale = uiLocale(i18n.picked);
 
 if (typeof document !== 'undefined') {
 	document.documentElement.lang = i18n.locale;
@@ -70,11 +79,12 @@ export function applyLocaleSettings(defaultLanguage: string | undefined, languag
 	const enabled = languages.filter(isLocale);
 	localeSettings.enabled = enabled.length ? enabled : [...locales];
 	if (isLocale(defaultLanguage) && isEnabled(defaultLanguage)) {
-		fallbackLocale = defaultLanguage;
+		localeSettings.fallback = defaultLanguage;
 	} else {
-		fallbackLocale = isEnabled('en') ? 'en' : localeSettings.enabled[0];
+		localeSettings.fallback = isEnabled('en') ? 'en' : localeSettings.enabled[0];
 	}
-	const next = readStored() ?? browserLocale() ?? fallbackLocale;
+	i18n.picked = readStored();
+	const next = uiLocale(i18n.picked);
 	if (i18n.locale !== next) {
 		i18n.locale = next;
 		if (typeof document !== 'undefined') {
@@ -84,6 +94,7 @@ export function applyLocaleSettings(defaultLanguage: string | undefined, languag
 }
 
 export function setLocale(next: Locale) {
+	i18n.picked = next;
 	i18n.locale = next;
 	persist(next);
 }
@@ -137,7 +148,7 @@ export function boardHint(id: string, unit?: string): string {
 }
 
 export function pageTitle(page: string): string {
-	return formatWindowTitle(page, i18n.locale);
+	return formatWindowTitle(page, languageOrder());
 }
 
 export function formatWhen(ms: number, fallback = '✓'): string {

@@ -80,6 +80,21 @@ export type MenuLink = {
 	newTab: boolean;
 };
 
+// A page of the server owner's own (config pages): an imprint, the rules, ... Only ones with a text are sent.
+export type CustomPage = {
+	id: string;
+	label: LocalizedText;
+	// A button next to the custom links, or a link in the footer next to How we rank.
+	place: 'menu' | 'footer';
+};
+
+export type CustomPageResponse = CustomPage & {
+	// The language of the text; null for the file meant for every language (page.md).
+	language: string | null;
+	format: 'markdown' | 'html' | 'text';
+	content: string;
+};
+
 export type StatusResponse = {
 	bind: string;
 	trackedPlayers: number;
@@ -102,6 +117,7 @@ export type StatusResponse = {
 	languages?: string[];
 	// Custom menu buttons from the config; only ones with a URL are sent.
 	links?: MenuLink[];
+	pages?: CustomPage[];
 	// URL of the configured header image; absent when there is none.
 	headerImage?: string;
 };

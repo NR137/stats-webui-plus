@@ -24,7 +24,7 @@ Stats WebUI Plus is a fork of **[mc-stats-webui](https://github.com/borrageiros/
 - 📊 Leaderboards for the whole vanilla stats catalog (custom, mined, killed, …)
 - 🧮 Transparent scoring (“How we rank”) — farms inflate some boards on purpose
 - 🌐 UI in **English / Español / Français / Deutsch**, with Minecraft's official block, item, mob and advancement names (picked from the browser's preferred languages, falling back to `defaultLanguage` in the config, default `en`) · light / dark / system theme
-- 🏷️ Branding: a header image (a pixel-art banner ships as the default), site heading with a Minecraft-style splash tagline and slogan, window title, extra menu links such as Map or Discord (see Configuration below)
+- 🏷️ Branding: a header image (a pixel-art banner ships as the default), site heading with a Minecraft-style splash tagline and slogan, window title, extra menu links such as Map or Discord, and pages of your own such as an imprint, a privacy policy or the server rules, written in Markdown, HTML or plain text (see Configuration below)
 - 🧍 3D player avatars with the players' skins; players without a skin of their own (e.g. on offline-mode servers) get the Minecraft default skin the game shows them
 - ⚡ In-memory stats cache (see below)
 
@@ -55,6 +55,9 @@ Settings live in `config/stats_webui_plus.json` on the server. The file is creat
 | `avatarAngle` | `0` | Starting camera angle around that avatar in degrees: `0` = facing you, `30` = slightly turned, `90` = side, `180` = back |
 | `avatarRotate` | `true` | Whether that avatar slowly turns on its own when the page opens; visitors can switch it with the rotate button |
 | `links` | Map, Discord and Dashboard placeholders | Extra menu buttons, see below |
+| `pages` | Imprint, Privacy Policy and Rules samples, all off | Pages of your own, in the menu or the footer, see below |
+
+**Text per language:** one order of languages is used everywhere: the language the visitor picked in the switcher, then their browser's preferred languages in order, then `defaultLanguage`, then English. The UI takes the first of them it offers; settings that take text per language (`windowTitle`, `siteHeading`, `siteHeadingTagline`, `siteHeadingSlogan`, the labels of `links` and `pages`) and the custom pages' files take the first they have, else the first one given (any file). So a visitor whose browser prefers French, then German, sees the German text where there is no French one, not the English.
 
 **Headings:** the site heading is each page's main heading (`<h1>`); page titles below it (Ranking, Players, …) are `<h2>`. Without a site heading, the page titles are the `<h1>`. They look the same either way.
 
@@ -70,10 +73,47 @@ Settings live in `config/stats_webui_plus.json` on the server. The file is creat
 ]
 ```
 
-- `label`: plain text, or text per language (falls back to English, then the first one given).
+- `label`: plain text, or text per language (see Text per language above).
 - `url`: must start with `http://`, `https://` or a single `/` (a page on this site, e.g. `/map`); anything else, including `//host`, is ignored with a warning in the server log.
 - `newTab`: open in a new browser tab (default `true`).
 - Add as many entries as you like; `"links": []` removes the placeholders for good.
+
+### 📄 Custom pages
+
+`pages` adds pages of your own: an imprint, a privacy policy, the server rules, a team page, … Each gets a link in the footer (next to How we rank) or a button in the menu (after the menu links), and opens in the same tab at `/pages/<id>`.
+
+Three samples come with the default config, all switched off: an **imprint** and a **privacy policy** in the footer and the **rules** in the menu. On first start (next to the new config, like the header image) the mod writes their texts in all four UI languages to `config/stats_webui_plus/pages/`: templates with [placeholders] for the imprint and the privacy policy (the latter already describes what this website does: no cookies, three settings in the browser's local storage, skins fetched by the server), and example rules. Fill them in, delete the note at the top, and set `"enabled": true`:
+
+```json
+"pages": [
+  { "id": "imprint", "label": { "en": "Imprint", "de": "Impressum", "es": "Aviso legal", "fr": "Mentions légales" }, "place": "footer", "enabled": true },
+  { "id": "privacy", "label": { "en": "Privacy Policy", "de": "Datenschutzerklärung", "es": "Política de privacidad", "fr": "Politique de confidentialité" }, "place": "footer", "enabled": false },
+  { "id": "rules", "label": { "en": "Rules", "de": "Regeln", "es": "Normas", "fr": "Règles" }, "place": "menu", "enabled": false }
+]
+```
+
+- `id`: the page's address (`/pages/rules`) and the name of its folder; lowercase letters, digits, `-` and `_`.
+- `label`: plain text, or text per language (see Text per language above).
+- `place`: `"footer"` (default) or `"menu"`.
+- `enabled`: `false` hides the page and its link (default `true`, so pages you add show up right away). A page without a file stays hidden either way.
+- Add as many entries as you like; `"pages": []` removes the samples for good (their files stay until you delete them; deleted sample files are not written again).
+
+The texts live in **`config/stats_webui_plus/pages/<id>/`**, one file per language, named by its language code:
+
+```
+config/stats_webui_plus/pages/
+├── imprint/
+│   ├── de.md
+│   └── en.md
+└── rules/
+    └── page.html
+```
+
+- **Markdown** (`.md`), **HTML** (`.html`) or **plain text** (`.txt`, shown as written: paragraphs at blank lines, line breaks kept, HTML in it shown as text). UTF-8, at most 512 KiB per file. In Markdown, a line break inside a paragraph needs a `\` at the end of the line (as in the samples). With two files for one language (`de.md` and `de.html`), `.md` wins over `.html` over `.txt`; the server log says which one is ignored.
+- **Language:** as for all texts (see Text per language above): the visitor's languages in order, `defaultLanguage`, English; then `page.md` (or `page.html`, `page.txt`), which is meant for every language, then any other file. A file may also be in a language the UI doesn't offer (e.g. `it.md` for visitors whose browser prefers Italian). For a single language, `page.md` alone is enough.
+- **Title:** a top heading at the very start (`# Imprint` in Markdown, `<h1>` in HTML) is the page's title; without one, the `label` is.
+- **Safe by design:** scripts, event handlers (`onclick`, …), `<style>` elements, forms and embedded frames are removed; links, images, tables, lists and `style` attributes stay. Links with `target="_blank"` open in a new tab.
+- Changes to the files show up on the next page load, no restart needed. Markdown and HTML are turned into the page in the visitor's browser, with [marked](https://github.com/markedjs/marked) (MIT) and [DOMPurify](https://github.com/cure53/DOMPurify) (Apache-2.0); both are only loaded on these pages.
 
 ### 🖼️ Header image
 

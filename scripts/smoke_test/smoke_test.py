@@ -165,13 +165,45 @@ def set_up(loader: str, game_port: int, web_port: int) -> tuple[Path, list[str],
 		'refreshCooldownMs': 2000,
 		'serverAddress': 'smoke.example.com',
 		'links': [{'label': 'Map', 'url': 'https://map.example.com'}, {'label': 'Bad', 'url': '//evil.example.com'}],
+		# The two examples of the default config, one page in the menu, and one without a text (so not shown).
+		'pages': [
+			{'id': 'imprint', 'label': {'en': 'Imprint', 'de': 'Impressum'}, 'place': 'footer'},
+			{'id': 'privacy', 'label': {'en': 'Privacy Policy', 'de': 'Datenschutzerklärung'}},
+			{'id': 'rules', 'label': {'en': 'Rules', 'de': 'Regeln'}, 'place': 'menu'},
+			{'id': 'empty', 'label': 'Empty', 'place': 'menu'},
+		],
 	}, indent=2))
+	write_pages(folder / 'config' / MOD_ID / 'pages')
 	# A config written before the first start gets no banner, so put the one from the JAR there (checks it is packed).
 	with zipfile.ZipFile(jar) as archive:
 		banner = folder / 'config' / MOD_ID / 'header.png'
 		banner.parent.mkdir(parents=True, exist_ok=True)
 		banner.write_bytes(archive.read(f'assets/{MOD_ID}/header.png'))
+		# The sample pages a new config gets (README, Custom pages): imprint, privacy policy and rules in every language.
+		samples = [f'assets/{MOD_ID}/pages/{page}/{language}.md'
+			for page in ('imprint', 'privacy', 'rules') for language in ('de', 'en', 'es', 'fr')]
+		missing = [name for name in samples if name not in archive.namelist()]
+		check(not missing, f'the JAR has the 12 sample pages (missing: {missing})')
 	return folder, command, jar
+
+
+def write_pages(folder: Path) -> None:
+	"""README, Custom pages: Markdown per language, HTML and text for every language; markup that must not survive."""
+	files = {
+		'imprint/en.md': '# Imprint\n\n**Alex Example**  \nMain Street 1\n\n[Example](https://example.com)\n\n'
+			'<script>window.__pageScript = 1</script>\n<img src="x" onerror="window.__pageScript = 2">\n',
+		'imprint/de.md': '# Impressum\n\n| Kontakt | |\n| --- | --- |\n| E-Mail | alex@example.com |\n',
+		'privacy/page.txt': 'We store nothing.\nReally <b>nothing</b>.\n\nQuestions: alex@example.com\n',
+		'rules/page.html': '<h2>Server rules</h2>\n<ol><li>Be nice.</li><li><a href="https://example.com" target="_blank">'
+			'No cheats</a></li></ol>\n<style>body { display: none }</style>\n<p onclick="window.__pageScript = 3">Have fun!</p>\n'
+			'<form action="https://example.com"><input name="password"><button>Send</button></form>\n'
+			'<iframe src="https://example.com"></iframe>\n',
+		'empty/notes.pdf': '%PDF',
+	}
+	for name, text in files.items():
+		file = folder / name
+		file.parent.mkdir(parents=True, exist_ok=True)
+		file.write_text(text, encoding='utf-8')
 
 
 # --- HTTP ---
@@ -225,6 +257,31 @@ def check_api(base: str) -> list[str]:
 	check([link.get('url') for link in body.get('links', [])] == ['https://map.example.com'],
 		'only the valid menu link is sent (//evil.example.com is hidden)')
 	check((body.get('branding') or {}).get('serverAddress') == 'smoke.example.com', 'branding comes from the config')
+	check([page.get('id') for page in body.get('pages', [])] == ['imprint', 'privacy', 'rules'],
+		'/api/status lists the custom pages that have a text')
+
+	imprint = get(base, '/api/pages/imprint?lang=de')
+	check(imprint.status == 200 and imprint.json().get('language') == 'de' and imprint.json().get('format') == 'markdown',
+		'/api/pages/imprint answers in the visitor\'s language')
+	check('no-cache' in imprint.header('Cache-Control'), 'custom pages are read again on every visit')
+	request = urllib.request.Request(base + '/api/pages/imprint?lang=de', headers={'If-None-Match': imprint.header('ETag')})
+	try:
+		urllib.request.urlopen(request, timeout=30)
+		unchanged = 200
+	except urllib.error.HTTPError as error:
+		unchanged = error.code
+	check(bool(imprint.header('ETag')) and unchanged == 304, 'an unchanged custom page is not sent again (ETag, 304)')
+	check(get(base, '/api/pages/imprint?lang=en').header('ETag') != imprint.header('ETag'),
+		'another language of a custom page has its own ETag')
+	favicon = get(base, '/favicon')
+	check(favicon.status == 200 and favicon.header('Content-Type') == 'image/svg+xml',
+		'without a server-icon.png the favicon is the web UI\'s own')
+	check(get(base, '/api/pages/imprint?lang=fr').json().get('language') == 'en',
+		'a custom page without the visitor\'s language falls back to English')
+	privacy = get(base, '/api/pages/privacy?lang=de').json()
+	check(privacy.get('language') is None and privacy.get('format') == 'text', 'page.txt serves every language')
+	check(get(base, '/api/pages/empty').status == 404 and get(base, '/api/pages/secret').status == 404,
+		'pages without a text or not in the config are not found')
 
 	players = get(base, '/api/players')
 	names = [player['name'] for player in players.json().get('players', [])]

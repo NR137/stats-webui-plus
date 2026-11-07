@@ -2,6 +2,7 @@ import type {
 	AdvancementDetailResponse,
 	AdvancementsCatalogResponse,
 	CrownsResponse,
+	CustomPageResponse,
 	HealthResponse,
 	LeaderboardBoard,
 	LeaderboardEntry,
@@ -329,6 +330,13 @@ export function getAdvancements() {
 
 export function getAdvancementMost() {
 	return getJson<LeaderboardResponse>('/api/advancements/most');
+}
+
+/** A page of the server owner's own, in the first of the given languages it has a text in (else the server picks one). */
+export function getCustomPage(id: string, languages: string[]) {
+	return getJson<CustomPageResponse>(
+		`/api/pages/${encodeURIComponent(id)}?lang=${languages.map(encodeURIComponent).join(',')}`
+	);
 }
 
 export function getPlayerAdvancement(name: string, id: string) {

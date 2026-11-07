@@ -24,7 +24,7 @@ public final class WebConfig {
 	public static final String DEFAULT_BIND = "0.0.0.0";
 	public static final String DEFAULT_WORLD = "";
 	// Per language, so the default config shows how to translate them. An empty entry means "not set": that
-	// language falls back to English, then to the first text given.
+	// language falls back to defaultLanguage, then English, then the first text given.
 	public static final Map<String, String> DEFAULT_SITE_HEADING =
 		LocalizedText.of("en", "My Server", "de", "Mein Server", "es", "Mi servidor", "fr", "Mon serveur");
 	public static final Map<String, String> DEFAULT_TAGLINE =
@@ -63,6 +63,28 @@ public final class WebConfig {
 		new MenuLink(LocalizedText.of("en", "Discord", "de", "Discord", "es", "Discord", "fr", "Discord"), "", true),
 		new MenuLink(LocalizedText.of("en", "Dashboard", "de", "Dashboard", "es", "Panel", "fr", "Tableau de bord"), "", true)
 	);
+	// Samples, off until the server owner fills in their files (written next to a new config, see writeSamplePages)
+	// and sets "enabled": true.
+	public static final List<CustomPage> DEFAULT_PAGES = List.of(
+		new CustomPage(
+			"imprint",
+			LocalizedText.of("en", "Imprint", "de", "Impressum", "es", "Aviso legal", "fr", "Mentions légales"),
+			"footer",
+			false
+		),
+		new CustomPage(
+			"privacy",
+			LocalizedText.of(
+				"en", "Privacy Policy",
+				"de", "Datenschutzerklärung",
+				"es", "Política de privacidad",
+				"fr", "Politique de confidentialité"
+			),
+			"footer",
+			false
+		),
+		new CustomPage("rules", LocalizedText.of("en", "Rules", "de", "Regeln", "es", "Normas", "fr", "Règles"), "menu", false)
+	);
 	// Must match the locales in web/src/lib/i18n/locales.ts
 	public static final List<String> LANGUAGES = List.of("de", "en", "es", "fr");
 
@@ -80,6 +102,7 @@ public final class WebConfig {
 	private final String headerImage;
 	private final String headerImagePosition;
 	private final List<MenuLink> links;
+	private final List<CustomPage> pages;
 	private final Object siteHeading;
 	private final Object siteHeadingTagline;
 	private final boolean siteHeadingTaglinePulse;
@@ -103,6 +126,7 @@ public final class WebConfig {
 		String headerImage,
 		String headerImagePosition,
 		List<MenuLink> links,
+		List<CustomPage> pages,
 		Object siteHeading,
 		Object siteHeadingTagline,
 		boolean siteHeadingTaglinePulse,
@@ -125,6 +149,7 @@ public final class WebConfig {
 		this.headerImage = headerImage;
 		this.headerImagePosition = headerImagePosition;
 		this.links = List.copyOf(links);
+		this.pages = List.copyOf(pages);
 		this.siteHeading = siteHeading;
 		this.siteHeadingTagline = siteHeadingTagline;
 		this.siteHeadingTaglinePulse = siteHeadingTaglinePulse;
@@ -201,6 +226,11 @@ public final class WebConfig {
 	/** All configured menu links, including placeholders without a URL (see {@link MenuLink#shown()}). */
 	public List<MenuLink> links() {
 		return links;
+	}
+
+	/** All configured pages, including ones without a text file yet (see {@link webui.stats.mc.web.CustomPages}). */
+	public List<CustomPage> pages() {
+		return pages;
 	}
 
 	/** Heading under the header image on every page: a String or text per language; "" for none. */
@@ -288,6 +318,7 @@ public final class WebConfig {
 			DEFAULT_HEADER_IMAGE,
 			DEFAULT_HEADER_IMAGE_POSITION,
 			DEFAULT_LINKS,
+			DEFAULT_PAGES,
 			DEFAULT_SITE_HEADING,
 			DEFAULT_TAGLINE,
 			true,
@@ -313,6 +344,7 @@ public final class WebConfig {
 				write(path, loaded);
 				McStatsWebui.LOGGER.info("Wrote default config {}", path);
 				writeDefaultHeaderImage();
+				writeSamplePages();
 				return loaded;
 			}
 			try (Reader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
@@ -346,6 +378,35 @@ public final class WebConfig {
 		} catch (IOException e) {
 			McStatsWebui.LOGGER.warn("Could not write the default header image {}", target, e);
 		}
+	}
+
+	/**
+	 * Puts the sample pages' files (imprint, privacy policy, rules; Markdown in every UI language) where the sample
+	 * entries of the default config look for them. Like the header image only next to a new config, so deleted samples
+	 * don't come back, and never over an existing file.
+	 */
+	private static void writeSamplePages() {
+		Path root = McStatsWebui.platform().configDir().resolve(McStatsWebui.MOD_ID).resolve("pages");
+		for (CustomPage page : DEFAULT_PAGES) {
+			for (String language : LANGUAGES) {
+				String name = page.id() + "/" + language + ".md";
+				Path target = root.resolve(name);
+				if (Files.exists(target)) {
+					continue;
+				}
+				try (InputStream sample = WebConfig.class.getResourceAsStream("/assets/" + McStatsWebui.MOD_ID + "/pages/" + name)) {
+					if (sample == null) {
+						McStatsWebui.LOGGER.warn("The sample page {} is missing from the mod JAR", name);
+						continue;
+					}
+					Files.createDirectories(target.getParent());
+					Files.copy(sample, target);
+				} catch (IOException e) {
+					McStatsWebui.LOGGER.warn("Could not write the sample page {}", target, e);
+				}
+			}
+		}
+		McStatsWebui.LOGGER.info("Wrote sample pages to {}; fill them in and set \"enabled\": true in the config", root);
 	}
 
 	/**
@@ -456,6 +517,27 @@ public final class WebConfig {
 				McStatsWebui.LOGGER.warn("links must be a list of {\"label\": ..., \"url\": ...} entries, ignoring it");
 			}
 		}
+		List<CustomPage> pages = DEFAULT_PAGES;
+		if (json.has("pages")) {
+			pages = new ArrayList<>();
+			if (json.get("pages").isJsonArray()) {
+				List<String> ids = new ArrayList<>();
+				for (JsonElement element : json.getAsJsonArray("pages")) {
+					CustomPage customPage = CustomPage.parse(element);
+					if (customPage == null) {
+						continue;
+					}
+					if (ids.contains(customPage.id())) {
+						McStatsWebui.LOGGER.warn("Ignoring the second page with id {}", customPage.id());
+						continue;
+					}
+					ids.add(customPage.id());
+					pages.add(customPage);
+				}
+			} else {
+				McStatsWebui.LOGGER.warn("pages must be a list of {\"id\": ..., \"label\": ..., \"place\": ...} entries, ignoring it");
+			}
+		}
 		String headerImagePosition = text(json, "headerImagePosition", DEFAULT_HEADER_IMAGE_POSITION).toLowerCase(Locale.ROOT);
 		if (!HEADER_IMAGE_POSITIONS.contains(headerImagePosition)) {
 			McStatsWebui.LOGGER.warn(
@@ -498,6 +580,7 @@ public final class WebConfig {
 			headerImage,
 			headerImagePosition,
 			links,
+			pages,
 			siteHeading,
 			siteHeadingTagline,
 			siteHeadingTaglinePulse,
@@ -577,6 +660,7 @@ public final class WebConfig {
 		body.put("statusBar", config.statusBar());
 		body.put("serverAddress", config.serverAddress());
 		body.put("links", config.links().stream().map(MenuLink::toJson).toList());
+		body.put("pages", config.pages().stream().map(CustomPage::toJson).toList());
 		try (Writer writer = Files.newBufferedWriter(path, StandardCharsets.UTF_8)) {
 			GSON.toJson(body, writer);
 			writer.write('\n');

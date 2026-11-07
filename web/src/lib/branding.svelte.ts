@@ -1,5 +1,5 @@
 import { getStatus } from '$lib/api';
-import type { LocalizedText, MenuLink, StatusResponse } from '$lib/types';
+import type { CustomPage, LocalizedText, MenuLink, StatusResponse } from '$lib/types';
 
 export type SiteBranding = {
 	// Browser tab title template with {page}, per language possible (config windowTitle).
@@ -24,6 +24,8 @@ export type SiteBranding = {
 	languages: string[];
 	// Custom menu buttons (config links).
 	links: MenuLink[];
+	// The server owner's own pages that have a text (config pages).
+	pages: CustomPage[];
 	// URL of the header image, or '' for none.
 	headerImage: string;
 	// Where it goes (config headerImagePosition): above the site heading, between heading and slogan, or below.
@@ -61,6 +63,7 @@ const defaults: SiteBranding = {
 	defaultLanguage: 'en',
 	languages: [],
 	links: [],
+	pages: [],
 	headerImage: '',
 	headerImagePosition: 'top',
 	loaded: true
@@ -108,6 +111,7 @@ export function loadBranding(): Promise<void> {
 			branding.defaultLanguage = status.defaultLanguage?.trim() || defaults.defaultLanguage;
 			branding.languages = status.languages ?? [];
 			branding.links = status.links ?? [];
+			branding.pages = status.pages ?? [];
 			branding.headerImage = status.headerImage || '';
 			const next = status.branding;
 			branding.windowTitle = next?.windowTitle ?? defaults.windowTitle;
@@ -139,7 +143,7 @@ export function loadBranding(): Promise<void> {
 /** Whether a site heading is configured (it then shows on every page). */
 export function hasSiteHeading(): boolean {
 	const heading = branding.siteHeading;
-	return localizedText(heading, 'en') !== '';
+	return localizedText(heading, ['en']) !== '';
 }
 
 /** Tag for a page's own title: the site heading is the page's h1 when there is one. */
@@ -147,22 +151,35 @@ export function pageTitleTag(): 'h1' | 'h2' {
 	return hasSiteHeading() ? 'h2' : 'h1';
 }
 
-/** Config text in the given language, falling back to English, then to the first language given. */
-export function localizedText(text: LocalizedText, locale: string): string {
+/**
+ * Config text in the first of the given languages it has (languageOrder() in i18n: the visitor's, then the server's
+ * defaultLanguage, then English), else the first text given: as the UI picks its language and as custom pages do.
+ */
+export function localizedText(text: LocalizedText, languages: string[]): string {
 	if (typeof text === 'string') {
 		return text;
 	}
 	// Empty entries mean "not set" (the default config lists every language with an empty heading).
 	const filled = (value: string | undefined) => (value?.trim() ? value : undefined);
-	return filled(text[locale]) ?? filled(text.en) ?? Object.values(text).find((value) => value.trim()) ?? '';
+	for (const language of [...languages, branding.defaultLanguage, 'en']) {
+		const value = filled(text[language]);
+		if (value) {
+			return value;
+		}
+	}
+	return Object.values(text).find((value) => value.trim()) ?? '';
 }
 
-export function linkLabel(link: MenuLink, locale: string): string {
-	return localizedText(link.label, locale) || link.url;
+export function linkLabel(link: MenuLink, languages: string[]): string {
+	return localizedText(link.label, languages) || link.url;
 }
 
-/** The browser tab title in the given language (the locale is passed in: i18n imports this module). */
-export function formatWindowTitle(page: string, locale: string): string {
-	const template = localizedText(branding.windowTitle, locale) || localizedText(defaults.windowTitle, locale);
+export function pageLabel(customPage: CustomPage, languages: string[]): string {
+	return localizedText(customPage.label, languages) || customPage.id;
+}
+
+/** The browser tab title in the first of the given languages it has (they are passed in: i18n imports this module). */
+export function formatWindowTitle(page: string, languages: string[]): string {
+	const template = localizedText(branding.windowTitle, languages) || localizedText(defaults.windowTitle, languages);
 	return template.replaceAll('{page}', page).replaceAll('<page>', page);
 }

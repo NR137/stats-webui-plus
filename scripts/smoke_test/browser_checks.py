@@ -24,6 +24,7 @@ def run(base: str, names: list[str], check) -> None:
 			_advancement_checks(browser, base, names, check)
 			_player_advancement_checks(browser, base, names, check)
 			_tree_checks(browser, base, names, check)
+			_custom_page_checks(browser, base, names, check)
 		finally:
 			browser.close()
 
@@ -55,6 +56,9 @@ def _checks(browser, base: str, names: list[str], check) -> None:
 	check(_shows(page, names[0]), 'the home page shows the ranking with the sample players')
 	check(page.locator('a[href="https://map.example.com"]').count() == 1, 'the Map menu button is there')
 	check(page.locator('a[href*="evil.example.com"]').count() == 0, 'the //evil.example.com link is not')
+	# SvelteKit makes the link absolute (http://host/favicon), so only its path is compared.
+	icons = page.evaluate("[...document.querySelectorAll('link[rel~=icon]')].map(link => new URL(link.href).pathname)")
+	check(icons == ['/favicon'], f'the page links the favicon at /favicon ({icons})')
 
 	# A click inside the app is no full page load: this marker survives it.
 	page.evaluate('window.__smoke = 1')
@@ -491,3 +495,85 @@ def _tree_checks(browser, base: str, names: list[str], check) -> None:
 		f'a search shows every tab with matches ({page.locator(".pack").count()})')
 	check(not errors, f'no JavaScript errors in the tree view ({"; ".join(errors[:3]) or "none"})')
 	page.context.close()
+
+
+def _custom_page_checks(browser, base: str, names: list[str], check) -> None:
+	"""CHANGELOG 1.4.0 / README, Custom pages: the server owner's own pages, in the footer or the menu, in this tab,
+	in the visitor's language; Markdown, HTML and text, without scripts or styles of their own."""
+	page, errors = _page(browser)
+	page.goto(base + '/')
+	footer = page.locator('footer .footer-links a')
+	footer.nth(2).wait_for()
+	check(footer.all_inner_texts() == ['How we rank', 'Imprint', 'Privacy Policy'],
+		f'the footer has the footer pages after How we rank ({footer.all_inner_texts()})')
+	rules = page.locator('nav.links a[href="/pages/rules"]')
+	check(rules.count() == 1 and rules.get_attribute('target') is None, 'the menu page is a button that opens in this tab')
+	check(page.locator('a[href="/pages/empty"]').count() == 0, 'a page without a text has no link')
+
+	page.evaluate('window.__smoke = 1')
+	footer.nth(1).click()
+	page.wait_for_url('**/pages/imprint')
+	page.locator('.custom-page').wait_for()
+	check(page.evaluate('window.__smoke') == 1, 'a custom page opens inside the app')
+	check(page.locator('.page-title').inner_text() == 'Imprint', 'the Markdown file\'s top heading is the page title')
+	check(page.locator('.custom-page strong').inner_text() == 'Alex Example', 'Markdown is rendered')
+	check(page.locator('.custom-page script, .custom-page [onerror]').count() == 0
+		and page.evaluate('window.__pageScript') is None, 'scripts in a custom page are removed')
+	check(page.title().startswith('Imprint'), f'the browser tab names the page ({page.title()})')
+
+	page.goto(base + '/pages/rules')
+	page.locator('.custom-page ol').wait_for()
+	check(page.locator('.custom-page li').count() == 2, 'an HTML page is shown as written')
+	check(page.locator('.page-title').inner_text() == 'Rules', 'without a top heading the label is the page title')
+	check(page.evaluate("getComputedStyle(document.body).display") != 'none', 'a <style> in a custom page is removed')
+	check(page.locator('.custom-page form, .custom-page input, .custom-page button, .custom-page iframe').count() == 0,
+		'forms and frames in a custom page are removed')
+	check(page.locator('.custom-page a[target="_blank"]').get_attribute('rel') == 'noopener noreferrer',
+		'links that open a new tab get rel=noopener')
+	page.locator('.custom-page p').click()
+	check(page.evaluate('window.__pageScript') is None, 'event handlers in a custom page are removed')
+
+	page.goto(base + '/pages/privacy')
+	page.locator('.custom-page p').first.wait_for()
+	paragraphs = page.locator('.custom-page p')
+	check(paragraphs.count() == 2 and page.locator('.custom-page br').count() == 1
+		and page.locator('.custom-page b').count() == 0 and '<b>nothing</b>' in paragraphs.first.inner_text(),
+		'a text page keeps its paragraphs and line breaks and shows markup as text')
+
+	page.goto(base + '/pages/secret')
+	check(_shows(page, 'This page does not exist.'), 'an unknown page says it does not exist')
+	check(not errors, f'no errors on the custom pages ({errors})')
+	page.context.close()
+
+	german, errors = _page(browser, locale='de-DE')
+	german.goto(base + '/pages/imprint')
+	german.locator('.custom-page table').wait_for()
+	check(german.locator('.page-title').inner_text() == 'Impressum', 'a German visitor gets the German file')
+	check(german.locator('footer .footer-links a').all_inner_texts() == ['So bewerten wir', 'Impressum', 'Datenschutzerklärung'],
+		'the footer labels are in the visitor\'s language')
+	german.goto(base + '/pages/rules')
+	german.locator('.custom-page ol').wait_for()
+	check(german.locator('.page-title').inner_text() == 'Regeln', 'the label is in the visitor\'s language')
+	german.set_viewport_size({'width': 390, 'height': 844})
+	check(german.locator('header .toggle').inner_text().strip() == 'Regeln',
+		'on phones the menu button names the menu page that is open')
+	german.context.close()
+
+	french, errors = _page(browser, locale='fr-FR')
+	french.goto(base + '/pages/imprint')
+	french.locator('.custom-page strong').wait_for()
+	check(french.locator('.custom-page').get_attribute('lang') == 'en',
+		'a page in another language than the site says so (lang), for hyphenation and screen readers')
+	french.context.close()
+
+	# Browser languages French, then German: the UI is French; the imprint has no French file, so the German one,
+	# and the labels without French text are German too (not English).
+	both, errors = _page(browser, locale='fr-FR')
+	both.add_init_script("Object.defineProperty(navigator, 'languages', { get: () => ['fr-FR', 'de-DE'] })")
+	both.goto(base + '/pages/imprint')
+	both.locator('.custom-page table').wait_for()
+	check(both.locator('.page-title').inner_text() == 'Impressum' and both.locator('html').get_attribute('lang') == 'fr',
+		'a page without the first browser language comes in the second one, not in English')
+	check(both.locator('nav.links a[href="/pages/rules"]').inner_text() == 'Regeln',
+		'so do labels without a text in the first browser language')
+	both.context.close()

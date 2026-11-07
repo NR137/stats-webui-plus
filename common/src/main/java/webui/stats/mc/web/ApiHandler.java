@@ -56,6 +56,19 @@ public final class ApiHandler {
 				HttpJson.send(exchange, 200, status(StatsCache.get().current().players(), server));
 				return;
 			}
+			// The server owner's own pages (imprint, rules, ...): files only, no stats needed.
+			if (path.startsWith("/api/pages/")) {
+				String id = path.substring("/api/pages/".length());
+				CustomPages.Content content = CustomPages.find(config, id, queryParameter(exchange, "lang"));
+				if (content == null) {
+					HttpJson.error(exchange, 404, "not_found", "Unknown page");
+					return;
+				}
+				// Read from the file on every request, so an edited text shows up on the next visit; browsers that have
+				// this version already get an empty 304 instead of the text again.
+				HttpJson.sendRevalidated(exchange, content.toJson(), "no-cache");
+				return;
+			}
 			StatsCache.Snapshot snapshot = StatsCache.get().refresh(server, config.refreshCooldownMs());
 			List<PlayerRecord> players = snapshot.players();
 			String cache = cacheControl(snapshot.refreshedAt());
@@ -158,6 +171,7 @@ public final class ApiHandler {
 		body.put("leaderboards", "/api/leaderboards");
 		body.put("crowns", "/api/crowns");
 		body.put("advancements", "/api/advancements");
+		body.put("pages", "/api/pages/<id>?lang=<languages, comma-separated, preferred first>");
 		return body;
 	}
 
@@ -181,6 +195,7 @@ public final class ApiHandler {
 		body.put("headerImage", HeaderImageHandler.url(config));
 		body.put("languages", config.languages());
 		body.put("links", config.linksPayload());
+		body.put("pages", CustomPages.payload(config));
 		body.put("defaultLanguage", config.defaultLanguage());
 		return body;
 	}
@@ -193,7 +208,22 @@ public final class ApiHandler {
 		return McStatsWebui.platform().gameDir().resolve(folder);
 	}
 
-	private static String toAdvancementId(String path) {
+	/** One parameter of the query string ("lang" of ?lang=de), or null. Values here are plain codes, never encoded. */
+	static String queryParameter(HttpExchange exchange, String name) {
+		String query = exchange.getRequestURI().getRawQuery();
+		if (query == null) {
+			return null;
+		}
+		for (String pair : query.split("&")) {
+			int equals = pair.indexOf('=');
+			if (equals > 0 && pair.substring(0, equals).equals(name)) {
+				return pair.substring(equals + 1);
+			}
+		}
+		return null;
+	}
+
+		private static String toAdvancementId(String path) {
 		int slash = path.indexOf('/');
 		if (slash <= 0) {
 			return path;
