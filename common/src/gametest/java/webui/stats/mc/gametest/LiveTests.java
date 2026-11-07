@@ -65,6 +65,10 @@ public final class LiveTests {
 	static void webServerStarted(GameTestHelper helper) {
 		helper.assertTrue(StatsCache.get().isReady(), "the stats cache was not loaded on server start");
 		CompletableFuture<HttpResponse<String>> health = get("/api/health");
+		// Waited for in real time, not in ticks: the test server ticks as fast as it can, so its 200 ticks may be over
+		// in a second, before a freshly started JVM has sent its first request. /api/health doesn't need the server
+		// thread, so blocking it here can't keep the answer back.
+		awaitAtMost(health, Duration.ofSeconds(20));
 		helper.succeedWhen(() -> {
 			helper.assertTrue(health.isDone(), "waiting for /api/health");
 			helper.assertFalse(health.isCompletedExceptionally(), "the mod's web server does not answer");
@@ -192,15 +196,7 @@ public final class LiveTests {
 				// An API request while the server thread is stuck, like in a lag spike: blocked until the API has answered
 				// (it gives up after 5 s), at most 20 s on a slow machine.
 				request.set(get("/api/players"));
-				long deadline = System.nanoTime() + Duration.ofSeconds(20).toNanos();
-				while (!request.get().isDone() && System.nanoTime() < deadline) {
-					try {
-						Thread.sleep(50);
-					} catch (InterruptedException e) {
-						Thread.currentThread().interrupt();
-						break;
-					}
-				}
+				awaitAtMost(request.get(), Duration.ofSeconds(20));
 			})
 			.thenWaitUntil(() -> {
 				helper.assertTrue(request.get().isDone(), "waiting for the API's answer");
@@ -214,6 +210,19 @@ public final class LiveTests {
 				leave(player);
 			})
 			.thenSucceed();
+	}
+
+	/** Blocks the calling (server) thread until the request is done, at most for the given time. */
+	private static void awaitAtMost(CompletableFuture<?> request, Duration limit) {
+		long deadline = System.nanoTime() + limit.toNanos();
+		while (!request.isDone() && System.nanoTime() < deadline) {
+			try {
+				Thread.sleep(50);
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				return;
+			}
+		}
 	}
 
 	private static String read(Path file) {

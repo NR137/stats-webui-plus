@@ -96,6 +96,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Long words in tiles (e.g. "Scharfschützenduell", "Diamantspitzhacke") broke anywhere without a hyphen; there they
   are now hyphenated from 10 letters on.
 - Tooltips are opaque, so they are easier to read.
+- **Pages no longer scroll sideways in windows between about 640 and 900 px wide** (tablets, half a screen). The
+  podium's player figures and the tooltips of tiles at the end of a row reached past the window's edge, even with the
+  tooltip closed. Tooltips near the edge now move along to stay inside the window, also on phones (where a tooltip
+  stays open after touching a tile and letting go elsewhere, and made the page scroll sideways while it was open).
 - **The favicon** is at one fixed address, `/favicon`: the Minecraft server's icon (`server-icon.png`, the one the
   game's server list shows) if it has one, else the web UI's own. Servers without an icon no longer cause an error in
   the browser console on every page load, and the icon no longer depends on a script swapping it after the page

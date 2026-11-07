@@ -41,6 +41,11 @@ def _page(browser, locale='en-US', **options) -> tuple[Page, list[str]]:
 	return page, errors
 
 
+# How far the page scrolls sideways (0 if it fits). Not scrollWidth - clientWidth: headless Chromium hides scrollbars
+# but keeps the page's stable scrollbar gutter, so up to 15 px too wide wouldn't show there.
+_SIDEWAYS = '() => { const y = scrollY; scrollTo(1e6, y); const x = scrollX; scrollTo(0, y); return x; }'
+
+
 def _shows(page: Page, text: str) -> bool:
 	try:
 		page.get_by_text(text, exact=False).first.wait_for(state='visible')
@@ -113,10 +118,43 @@ def _checks(browser, base: str, names: list[str], check) -> None:
 		page.wait_for_load_state('networkidle')
 		wide = page.evaluate('document.documentElement.scrollWidth - window.innerWidth')
 		check(wide <= 0, f'{path} fits a 390 px phone screen ({wide} px too wide)')
+	page.context.close()
+
+	# CHANGELOG 1.4.0: no page is wider than the window between phone and desktop (the podium shows from 641 px), and
+	# a tooltip at the window's edge moves along to stay inside it.
+	page, _ = _page(browser)
+	player = quote(names[0], safe='')
+	for width in (660, 700, 860):
+		page.set_viewport_size({'width': width, 'height': 900})
+		for path in ['/', '/advancements', f'/players/{player}/advancements']:
+			page.goto(base + path)
+			page.wait_for_load_state('networkidle')
+			wide = page.evaluate(_SIDEWAYS)
+			check(wide == 0, f'{path} fits a {width} px window (scrolls {wide} px sideways)')
+	# On phones too, where a finger that touched a tile and let go elsewhere leaves its tooltip open.
+	for width in (700, 390):
+		page.set_viewport_size({'width': width, 'height': 900})
+		page.goto(base + '/advancements')
+		page.wait_for_load_state('networkidle')
+		tips = [tip for tip in page.locator('main span:has(> [role=tooltip])').all() if tip.bounding_box()]
+		for side, edge in (('right', max(tips, key=lambda tip: tip.bounding_box()['x'])),
+				('left', min(tips, key=lambda tip: tip.bounding_box()['x']))):
+			edge.scroll_into_view_if_needed()
+			edge.hover()
+			bubble = edge.locator('> [role=tooltip]').bounding_box()
+			visible = page.evaluate('document.documentElement.getBoundingClientRect().width')
+			check(bubble is not None and bubble['x'] >= 0 and bubble['x'] + bubble['width'] <= visible,
+				f'at {width} px a tooltip at the {side} edge stays inside the window ({bubble})')
+			wide = page.evaluate(_SIDEWAYS)
+			check(wide == 0, f'at {width} px an open tooltip doesn\'t widen the page (scrolls {wide} px sideways)')
+	page.context.close()
+
+	page, errors = _page(browser, viewport={'width': 390, 'height': 844}, is_mobile=True, has_touch=True)
 
 	# CHANGELOG 1.4.0: on phones the pages are behind one button naming the current page; it closes after choosing.
 	page.goto(base + '/')
 	toggle = page.get_by_role('button', name='Menu: Ranking')
+	toggle.wait_for()
 	check(toggle.is_visible() and not page.get_by_role('link', name='Leaderboards').is_visible(),
 		'the phone menu is one button naming the page, the pages are hidden')
 	toggle.click()

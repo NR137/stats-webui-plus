@@ -93,10 +93,14 @@
 		overflow: visible;
 	}
 
+	/* The canvas is stretched wider than its place (transparent at the sides): cut off sideways, else the outer places
+	   make the page scroll sideways where the window is little wider than the page (about 640 to 900 px). The head
+	   still rises above the place. */
 	.figure {
 		margin: 0 0.15rem -7.1rem;
 		z-index: 0;
-		overflow: visible;
+		overflow-x: clip;
+		overflow-y: visible;
 		pointer-events: none;
 	}
 
