@@ -1,0 +1,50 @@
+/* Deepslate: the game's deepslate under a dark, slightly cool veil, with near-black panels. The game's own colours
+   stay (gold and yellow text, the experience green, the advancement colours, the grey buttons); the page and panels
+   are what make the theme. Every text colour has at least 4.5:1 contrast on panels and slots. */
+/* Also on :root: the fallback before any theme is set. */
+:root,
+html[data-theme='deepslate'] {
+	--font-ui: 'Minecraft', 'Courier New', monospace;
+	--color-bg: #14161b;
+	--color-fg: #ffffff;
+	--color-muted: #a3abb5;
+	--color-text: #e2e5ea;
+	--color-accent: #55ff55;
+	--color-advancement: #ffff00;
+	--color-challenge: #ff88ff;
+	--color-gold: #ffff55;
+	--color-xp: #80ff20;
+	--xp-outline: 2px 0 0 #000, -2px 0 0 #000, 0 2px 0 #000, 0 -2px 0 #000;
+	--color-hover: #ffffa0;
+	/* The slogan's ribbon (config siteHeadingSloganStyle "ribbon"); white text on it. */
+	--color-ribbon: #7a2a1a;
+	--color-border: #000000;
+	/* Lines inside panels (a quote's bar, rules, table grids, code boxes): the frames' black would vanish on them. */
+	--color-rule: #5d6371;
+	/* Solid like Birch's panels: text reads the same over any part of the page's texture. */
+	--color-card: #0d0f14;
+	--color-tooltip: #0e1015;
+	--color-shadow: #33363d;
+	/* Solid, like the light theme's: rows and tiles read the same over any part of the page's texture. */
+	--slot-bg: #111318;
+	--slot-hover: #1d2027;
+	--color-plate: #1b1e25;
+	--color-plate-gold: #6a5718;
+	--color-plate-silver: #474b57;
+	--color-plate-bronze: #5a3516;
+	--color-silver: #c9ccd4;
+	--color-bronze: #d98d3e;
+	--text-shadow: 2px 2px 0 var(--color-shadow);
+	/* Panels framed in the cool grey of the stone around them; slots plain. */
+	--panel-edge: inset 0 0 0 2px #3b404b;
+	--slot-edge: none;
+	--slot-edge-dark: transparent;
+	--slot-edge-light: transparent;
+	/* The game's texture as the server serves it (the address without a version, so it needs no script; the browser
+	   checks it again on each visit). Without the game's files only the colours show. */
+	--page-background:
+		linear-gradient(#0a0c12bd, #0a0c12bd),
+		url('/mc/block/deepslate.png') 0 0 / 64px 64px repeat,
+		var(--color-bg);
+	color-scheme: dark;
+}

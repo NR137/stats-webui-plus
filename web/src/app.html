@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en" data-theme="deepslate" data-mode="dark" data-theme-preference="system" data-title-font="tiny">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="text-scale" content="scale" />
+		<!-- The Minecraft server's icon if it has one, else ours: the mod decides (FaviconHandler). -->
+		<link rel="icon" href="/favicon" />
+		<script>
+			// The stored theme before the page is drawn, so the visitor never sees a flash of the wrong one. Plain ES5
+			// without imports, so it can't use the registry (src/lib/theme/themes.ts): its themes, modes and defaults
+			// are repeated here, and themes.test.ts checks that they match.
+			(function () {
+				var key = 'stats-webui-plus-theme';
+				var modes = { birch: 'light', deepslate: 'dark' };
+				var defaults = { light: 'birch', dark: 'deepslate' };
+				var preference = 'system';
+				try {
+					preference = localStorage.getItem(key);
+					if (preference !== 'system' && !Object.prototype.hasOwnProperty.call(modes, preference)) {
+						preference = 'system';
+						localStorage.setItem(key, preference);
+					}
+				} catch (error) {
+					// Blocked storage (private mode, site settings).
+					preference = 'system';
+				}
+				var id = preference;
+				if (preference === 'system') {
+					var light = false;
+					try {
+						light = window.matchMedia('(prefers-color-scheme: light)').matches;
+					} catch (error) {
+						// No matchMedia: the device says nothing, which counts as dark.
+					}
+					id = light ? defaults.light : defaults.dark;
+				}
+				var root = document.documentElement;
+				root.setAttribute('data-theme', id);
+				root.setAttribute('data-mode', modes[id]);
+				root.setAttribute('data-theme-preference', preference);
+				root.style.colorScheme = modes[id];
+			})();
+		</script>
+		%sveltekit.head%
+	</head>
+	<body data-sveltekit-preload-data="hover">
+		<div style="display: contents">%sveltekit.body%</div>
+	</body>
+</html>

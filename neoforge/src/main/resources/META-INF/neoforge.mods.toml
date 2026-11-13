@@ -1,0 +1,33 @@
+# Placeholders are filled in by processResources (build-logic/src/main/groovy/multiloader-common.gradle).
+license="${license}"
+issueTrackerURL="${mod_homepage}/issues"
+
+[[mods]]
+modId="${mod_id}"
+version="${version}"
+displayName="${mod_name}"
+iconFile="assets/${mod_id}/icon.png"
+authors="NR137"
+credits="Inspired by mc-stats-webui by borrageiros: ${inspired_by_homepage}"
+displayURL="${mod_homepage}"
+description='''
+Live player statistics website and JSON API for NeoForge servers. Inspired by mc-stats-webui by borrageiros.
+Not an official Minecraft product. Not approved by or associated with Mojang or Microsoft.
+'''
+
+[[mixins]]
+config="${mod_id}.mixins.json"
+
+[[dependencies.${mod_id}]]
+    modId="neoforge"
+    type="required"
+    versionRange="[${neoforge_version},)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.${mod_id}]]
+    modId="minecraft"
+    type="required"
+    versionRange="${minecraft_version_range}"
+    ordering="NONE"
+    side="BOTH"

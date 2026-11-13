@@ -1,0 +1,146 @@
+name: tests
+
+# Pushes to main, pull requests, and every release (release.yml runs this first and stops if it fails).
+# Everything runs in the dev image (docker/Dockerfile) with the commands of ./tasks.sh, as on a developer's machine.
+# Draft pull requests only get the quick tests on each push; marking one "Ready for review" runs everything, and so
+# does every push after that. All three jobs are required to merge into main (branch protection).
+# A pull request that only changes texts and screenshots (*.md, screenshots/, docs/; see ./tasks.sh changes) skips the
+# tests: their jobs still run and pass, with the steps skipped, because a job skipped as a whole (or a workflow left out
+# with paths-ignore) would also pass when something before it failed, or never report and block the merge.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.ref }}
+  # A new push to a pull request makes the older run pointless; releases and main always finish.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # main only has released versions, so CHANGELOG.md's top section must be the version in gradle.properties, with a
+  # date; a pull request that changes the mod JAR is a new release and must raise that version (./tasks.sh changes:
+  # tests, scripts, CI and texts alone need no release). Only bash and git, so it runs without the dev image. On a
+  # release branch it stays red until the date is set; the other jobs show whether the tests pass.
+  changelog:
+    name: changelog is ready for release
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      # With the history, to compare with the target branch.
+      - name: checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: check CHANGELOG.md
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: ./tasks.sh changelog ${BASE_REF:+"origin/$BASE_REF"}
+
+  # JUnit tests of common/, type check and Vitest tests of web/.
+  quick:
+    name: java and web tests
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: what changed
+        id: changes
+        uses: ./.github/actions/changes
+
+      - name: validate gradle wrapper
+        if: ${{ steps.changes.outputs.kind != 'docs' }}
+        uses: gradle/actions/wrapper-validation@v6
+
+      - name: dev image
+        if: ${{ steps.changes.outputs.kind != 'docs' }}
+        uses: ./.github/actions/dev-image
+
+      - name: test
+        if: ${{ steps.changes.outputs.kind != 'docs' }}
+        run: docker compose run --rm -T dev ./tasks.sh test
+
+      - name: attach test report
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: java-test-report
+          path: common/build/reports/tests/test
+          retention-days: 7
+
+  # The release JARs, the game tests (a mock player on each loader's game test server), the smoke tests (the JARs on
+  # the official Fabric and NeoForge servers, checked over HTTP and in headless Chromium) and the singleplayer tests
+  # (each loader's dev client on a virtual screen).
+  integration:
+    name: build, game, smoke and singleplayer tests
+    # Not for drafts (a skipped job counts as passed, but drafts can't be merged).
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
+    runs-on: ubuntu-26.04
+    timeout-minutes: 45
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: what changed
+        id: changes
+        uses: ./.github/actions/changes
+
+      - name: validate gradle wrapper
+        if: ${{ steps.changes.outputs.kind != 'docs' }}
+        uses: gradle/actions/wrapper-validation@v6
+
+      - name: dev image
+        if: ${{ steps.changes.outputs.kind != 'docs' }}
+        uses: ./.github/actions/dev-image
+
+      # The client JAR (the sample players' items) and the smoke test servers with their libraries. The mod itself
+      # downloads the game's assets from Mojang at each smoke server's start, as on a real server.
+      - name: cache minecraft downloads
+        if: ${{ steps.changes.outputs.kind != 'docs' }}
+        uses: actions/cache@v6
+        with:
+          path: scripts/.cache
+          key: mc-downloads-${{ hashFiles('gradle.properties') }}
+          restore-keys: mc-downloads-
+
+      - name: build
+        if: ${{ steps.changes.outputs.kind != 'docs' }}
+        run: docker compose run --rm -T dev ./tasks.sh build
+
+      - name: game tests
+        if: ${{ steps.changes.outputs.kind != 'docs' }}
+        run: docker compose run --rm -T dev ./tasks.sh gametest
+
+      - name: smoke tests
+        if: ${{ steps.changes.outputs.kind != 'docs' }}
+        run: docker compose run --rm -T dev ./tasks.sh smoke
+
+      # The dev client of each loader on a virtual screen, in a copy of the smoke test's world.
+      - name: singleplayer tests
+        if: ${{ steps.changes.outputs.kind != 'docs' }}
+        run: docker compose run --rm -T dev ./tasks.sh client
+
+      - name: attach logs
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: integration-logs
+          path: |
+            scripts/.cache/smoke/*/smoke-test.log
+            fabric/build/run/smokeClient/client-test.log
+            neoforge/build/run/smokeClient/client-test.log
+            fabric/build/run/gameTest/logs
+            neoforge/build/run/gameTest/logs
+          retention-days: 7

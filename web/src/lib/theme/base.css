@@ -1,0 +1,226 @@
+/* mac's Minecraft by macimas (github.com/macimas-fonts/macsMinecraft), SIL Open Font License 1.1 (OFL.txt next to the
+   files, and on /licenses): a recreation of the game's font, no file of the game. Browsers only download the styles a
+   page uses, so bold and italic cost nothing until a custom page or a heading needs them. */
+@font-face {
+	font-family: 'Minecraft';
+	font-weight: 400;
+	font-style: normal;
+	font-display: swap;
+	src: url('../assets/fonts/macsMinecraft-Regular.woff2') format('woff2');
+}
+
+@font-face {
+	font-family: 'Minecraft';
+	font-weight: 700;
+	font-style: normal;
+	font-display: swap;
+	src: url('../assets/fonts/macsMinecraft-Bold.woff2') format('woff2');
+}
+
+@font-face {
+	font-family: 'Minecraft';
+	font-weight: 400;
+	font-style: italic;
+	font-display: swap;
+	src: url('../assets/fonts/macsMinecraft-Italic.woff2') format('woff2');
+}
+
+@font-face {
+	font-family: 'Minecraft';
+	font-weight: 700;
+	font-style: italic;
+	font-display: swap;
+	src: url('../assets/fonts/macsMinecraft-BoldItalic.woff2') format('woff2');
+}
+
+* {
+	box-sizing: border-box;
+}
+
+/* Room for the scrollbar always, so content doesn't shift sideways between short and long pages. */
+html {
+	scrollbar-gutter: stable;
+}
+
+html,
+body {
+	min-height: 100%;
+	margin: 0;
+	color: var(--color-fg);
+	font-family: var(--font-ui);
+	font-size: 16px;
+	line-height: 1.4;
+	-webkit-font-smoothing: none;
+	font-smooth: never;
+	text-shadow: var(--text-shadow);
+}
+
+body {
+	background: var(--color-bg);
+}
+
+/* The theme's page background, fixed behind everything. */
+body::before {
+	position: fixed;
+	inset: 0;
+	z-index: -1;
+	background: var(--page-background);
+	image-rendering: pixelated;
+	content: '';
+	pointer-events: none;
+}
+
+a {
+	color: inherit;
+	text-decoration: none;
+}
+
+h1,
+h2,
+h3 {
+	font-weight: 400;
+	text-shadow: var(--text-shadow);
+}
+
+/* Page titles in a pixel font of their own (config pageTitleFont, set on <html> by the server and the layout), in
+   capitals. font-size-adjust sizes them by their capital height, measured against mac's Minecraft at each page's own
+   size, so a title keeps about its size in any font; Press Start 2P a little smaller, as its letters are much wider.
+   A player's name stays in the Minecraft font, as written. */
+html[data-title-font='tiny'] .page-title:not(.player-name) {
+	font-family: 'Tiny5', var(--font-ui);
+	font-size-adjust: cap-height 0.85;
+	line-height: 1.2;
+	text-transform: uppercase;
+}
+
+html[data-title-font='blocky'] .page-title:not(.player-name) {
+	font-family: 'Press Start 2P', var(--font-ui);
+	font-size-adjust: cap-height 0.75;
+	line-height: 1.3;
+	text-transform: uppercase;
+}
+
+/* Long single words (German compounds like "Blasenkorallenwandfächer" or "Nahkampfschaden") break with a hyphen where
+   they don't fit. Hyphenation follows <html lang>, which tracks the UI language; overflow-wrap catches words the
+   browser has no hyphenation rules for. Only words of 12+ letters, with 5+ on each side of the break: shorter words
+   move to the next line whole ("Tie-re" looks odd). */
+h1,
+h2,
+h3,
+.mc-btn,
+.slot,
+th,
+td {
+	overflow-wrap: break-word;
+	hyphens: auto;
+	hyphenate-limit-chars: 12 5 5;
+}
+
+/* Labels in tiles are narrow: with 5 letters on each side, long words like "Scharfschützenduell" had no break point
+   that fits and broke anywhere without a hyphen. */
+.tile .label,
+.part .label {
+	hyphenate-limit-chars: 10 4 3;
+}
+
+/* A tile of a grid (statistics, advancements): an icon, a name and small lines, centred in a slot, as tall as its
+   row. Each kind of tile sets its own least height. */
+.tile {
+	display: flex;
+	flex-direction: column;
+	gap: 0.28rem;
+	align-items: center;
+	width: 100%;
+	height: 100%;
+	padding: 0.7rem 0.45rem 0.55rem;
+	text-align: center;
+}
+
+/* The game's buttons: grey with white text in every theme; hovered or focused, lighter, in a white frame, with yellow
+   text. A button is drawn from five values (face, light and dark edge, frame, label), which these states switch; a
+   selected one (a tab, a view) keeps that look with the class "lit". The palette is also used by what looks like a
+   button (search field, loader). */
+:root {
+	--button-face: #6f6f6f;
+	--button-face-hover: #757575;
+	--button-highlight: #aaaaaa;
+	--button-highlight-hover: #afafaf;
+	--button-shadow: #565656;
+	--button-shadow-hover: #5c5c5c;
+	--button-border: #000000;
+	--button-border-hover: #ffffff;
+}
+
+button,
+select,
+.mc-btn {
+	--face: var(--button-face);
+	--edge-light: var(--button-highlight);
+	--edge-dark: var(--button-shadow);
+	--frame: var(--button-border);
+	--label: #ffffff;
+	display: inline-flex;
+	gap: 0.45rem;
+	align-items: center;
+	justify-content: center;
+	min-height: 2.5rem;
+	padding: 0.35rem 0.8rem;
+	border: 2px solid var(--frame);
+	border-radius: 0;
+	outline: none;
+	box-shadow:
+		inset 2px 2px 0 var(--edge-light),
+		inset -2px -2px 0 var(--edge-dark);
+	background: var(--face);
+	color: var(--label);
+	font: inherit;
+	text-align: center;
+	text-shadow: 2px 2px 0 #3f3f3f;
+	appearance: none;
+	cursor: pointer;
+}
+
+:is(button, select, .mc-btn):is(:hover, :focus-visible, .lit) {
+	--face: var(--button-face-hover);
+	--edge-light: var(--button-highlight-hover);
+	--edge-dark: var(--button-shadow-hover);
+	--frame: var(--button-border-hover);
+	--label: #ffffa0;
+}
+
+.panel {
+	border: 2px solid var(--color-border);
+	border-radius: 0;
+	box-shadow: var(--panel-edge);
+	background: var(--color-card);
+}
+
+.slot {
+	border: 2px solid var(--color-border);
+	border-radius: 0;
+	box-shadow: var(--slot-edge);
+	background: var(--slot-bg);
+}
+
+.slot:hover {
+	background: var(--slot-hover);
+	color: var(--color-hover);
+}
+
+/* A page's line under its title, and a note in place of content (nothing found, could not load): quiet, centred. */
+.lead,
+.message {
+	color: var(--color-muted);
+	text-align: center;
+}
+
+code {
+	color: var(--color-gold);
+	font-family: var(--font-ui);
+}
+
+/* Clicking checkbox labels ("Hide zeros", "Achieved only", ...) quickly doesn't select their text. */
+label:has(input[type='checkbox']) {
+	-webkit-user-select: none;
+	user-select: none;
+}

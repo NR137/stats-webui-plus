@@ -1,0 +1,27 @@
+name: changes
+description: >-
+  What a pull request touches, by its files (./tasks.sh changes): jar (the mod JAR can change, a release), tools (tests,
+  scripts, dev image, CI) or docs (only texts and screenshots). Pushes and releases count as jar. Needs a checkout with
+  fetch-depth 0.
+
+outputs:
+  kind:
+    description: jar, tools or docs
+    value: ${{ steps.kind.outputs.kind }}
+
+runs:
+  using: composite
+  steps:
+    - name: what changed
+      id: kind
+      shell: bash
+      env:
+        BASE_REF: ${{ github.base_ref }}
+      run: |
+        if [ -n "$BASE_REF" ]; then
+          kind=$(./tasks.sh changes "origin/$BASE_REF")
+        else
+          kind=jar
+        fi
+        echo "kind=$kind" >> "$GITHUB_OUTPUT"
+        echo "Changes: $kind"

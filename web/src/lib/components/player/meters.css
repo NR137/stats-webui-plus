@@ -1,0 +1,64 @@
+/* The player page's meters, skills and advancement tier alike: a caption with its "how" link, then per meter an icon,
+   a line with the name and the value, and a bar under it. */
+.meters {
+	display: flex;
+	flex-direction: column;
+	gap: 0.55rem;
+}
+
+.meters-caption {
+	margin: 0 0 0.2rem;
+	color: var(--color-muted);
+	font-size: 0.95rem;
+}
+
+.meters-how {
+	margin-left: 0.5rem;
+	border-bottom: 1px dotted;
+	color: var(--color-muted);
+	font-size: 0.85em;
+}
+
+.meters-how:hover,
+.meters-how:focus-visible {
+	color: var(--color-hover);
+}
+
+.meter {
+	display: grid;
+	grid-template-columns: 2rem minmax(0, 1fr);
+	grid-template-rows: auto auto;
+	gap: 0.28rem 0.7rem;
+	align-items: center;
+}
+
+.meter-icon {
+	display: flex;
+}
+
+.meter-line {
+	display: flex;
+	grid-column: 2;
+	gap: 0.8rem;
+	justify-content: space-between;
+	align-items: baseline;
+}
+
+.meter-value {
+	color: var(--color-gold);
+	font-variant-numeric: tabular-nums;
+}
+
+.meter-bar {
+	display: block;
+	grid-column: 2;
+	height: 0.55rem;
+	border: 2px solid var(--color-border);
+	box-shadow: inset 0 0 0 1px var(--button-shadow);
+	background: var(--slot-bg);
+}
+
+.meter-fill {
+	display: block;
+	height: 100%;
+}

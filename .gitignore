@@ -1,0 +1,41 @@
+# What builds, the dev servers and the tools write; all of it can be made again.
+
+# Gradle, the builds and the loaders' dev servers (fabric/runs, neoforge/runs)
+.gradle/
+build/
+runs/
+# What a crashed or profiled JVM leaves behind
+hs_err_*.log
+replay_*.log
+*.hprof
+*.jfr
+
+# The web UI's packages, Yarn's own files and what SvelteKit and Vite generate
+node_modules/
+.yarn/
+.svelte-kit/
+vite.config.ts.timestamp-*
+
+# The game's textures, icons and texts are Mojang's: the mod downloads and draws them at server start. None of them
+# belongs in git, nor here, where the build would put them into the JAR.
+web/static/mc/
+
+# The scripts' downloads and Python's caches
+scripts/.cache/
+__pycache__/
+
+# Notes that stay on this machine; of docs/ only the API reference is published
+TODO.md
+docs/*
+!docs/api.md
+
+# Editors and operating systems
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+.cursor/
+.DS_Store
+Thumbs.db

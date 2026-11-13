@@ -1,0 +1,55 @@
+plugins {
+	// see https://maven.fabricmc.net/net/fabricmc/fabric-loom/net.fabricmc.fabric-loom.gradle.plugin/maven-metadata.xml for new versions
+	id 'net.fabricmc.fabric-loom' version '1.19.4' apply false
+	// see https://projects.neoforged.net/neoforged/moddevgradle for new versions
+	id 'net.neoforged.moddev' version '2.0.148' apply false
+}
+
+// Java, Node and Python versions are set once, in .tool-versions; the dev image installs exactly these (docker/).
+// Java is the version the mod is compiled for and requires (toolchain, release flag, mod metadata).
+def javaLine = file('.tool-versions').readLines().find { it.trim().startsWith('java ') }
+if (javaLine == null) {
+	throw new GradleException('.tool-versions has no "java <version>" line')
+}
+allprojects {
+	ext.java_version = javaLine.trim().split(/\s+/)[1]
+}
+
+// ModDevGradle runs NeoForm's helper (Minecraft artifacts, asset downloads) on a Java 21 of its own by default, which
+// Gradle would download; ours works too, so .tool-versions stays the only Java.
+subprojects {
+	tasks.withType(net.neoforged.nfrtgradle.NeoFormRuntimeTask).configureEach {
+		javaExecutable = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(java_version) }
+			.map { it.executablePath.asFile.absolutePath }
+	}
+}
+
+// The web UI is built once here and packed into both loader JARs (see multiloader-loader.gradle).
+
+// `corepack yarn <script>` in web/. On Windows corepack is a .cmd script, which only cmd can start.
+def yarn = { String script ->
+	def command = ['corepack', 'yarn', script]
+	System.getProperty('os.name').startsWith('Windows') ? ['cmd', '/c'] + command : command
+}
+
+tasks.register('yarnInstall', Exec) {
+	workingDir file('web')
+	commandLine yarn('install')
+	inputs.files file('web/package.json'), file('web/yarn.lock')
+	outputs.dir file('web/node_modules')
+}
+
+tasks.register('yarnBuild', Exec) {
+	dependsOn yarnInstall
+	workingDir file('web')
+	def appVersion = "${project.mod_version}+${project.minecraft_version}"
+	environment 'STATS_WEBUI_VERSION', appVersion
+	inputs.property 'appVersion', appVersion
+	commandLine yarn('build')
+	inputs.dir file('web/src')
+	inputs.dir file('web/static')
+	inputs.files file('web/package.json'), file('web/yarn.lock'), file('web/vite.config.ts'), file('web/licenses.ts'), file('web/tsconfig.json'), file('web/src/app.html')
+	// The licenses page shows LICENSE (web/licenses.ts).
+	inputs.files file('LICENSE')
+	outputs.dir file('web/build')
+}

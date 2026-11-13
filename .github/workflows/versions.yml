@@ -1,0 +1,34 @@
+name: versions
+
+# Every version the project uses against the newest one (scripts/versions/check_versions.py, ./tasks.sh versions):
+# Minecraft and its loaders, Gradle and its plugins, the web packages, the dev image's tools and these workflows'
+# actions and runners. Red when something can be updated, so a pull request shows it; not required to merge, because a
+# new release somewhere else shouldn't block a fix. Runs on pull requests into main and by hand (Actions -> versions ->
+# Run workflow), never on a schedule.
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: versions-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  versions:
+    name: versions are the newest
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v7
+
+      # Only Python's standard library, so the runner's Python is enough; the table also goes to the run's summary.
+      - name: check versions
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/versions/check_versions.py

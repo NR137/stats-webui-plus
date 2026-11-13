@@ -1,0 +1,44 @@
+/* Birch: the game's birch planks under a light veil, with panels in a warm paper cream sunk in like the game's slots
+   (dark top left, light bottom right), and dark brown text without a shadow. Only what can be clicked stands out (the
+   game's grey buttons). Every text colour has at least 4.5:1 contrast on the page, panels and slots. Advancement
+   tiles stay dark, as in every light theme (AdvancementTile). */
+html[data-theme='birch'] {
+	--color-bg: #e2d6aa;
+	--color-fg: #26221c;
+	--color-muted: #574f43;
+	--color-text: #39332a;
+	--color-accent: #2c6510;
+	--color-advancement: #ffff00;
+	--color-challenge: #ff88ff;
+	--color-gold: #664700;
+	--color-xp: #285400;
+	--xp-outline: none;
+	--color-hover: #8a2c00;
+	/* The slogan's ribbon; white text on it. */
+	--color-ribbon: #8f3220;
+	--color-border: #39332a;
+	/* Lines inside panels (a quote's bar, rules, table grids, code boxes). */
+	--color-rule: #b5a77f;
+	--color-card: #f4eedc;
+	--color-tooltip: #fbf8ee;
+	--color-shadow: transparent;
+	--slot-bg: #e8dfc4;
+	--slot-hover: #f1eada;
+	--color-plate: #f4eedc;
+	--color-plate-gold: #f2d66c;
+	--color-plate-silver: #dfe0e8;
+	--color-plate-bronze: #ecc088;
+	--color-silver: #585a66;
+	--color-bronze: #874c15;
+	--text-shadow: none;
+	--panel-edge: inset 2px 2px 0 #b5a77f, inset -2px -2px 0 #fffbf0;
+	--slot-edge: inset 2px 2px 0 #b5a77f, inset -2px -2px 0 #fffbf0;
+	--slot-edge-dark: #b5a77f;
+	--slot-edge-light: #fffbf0;
+	/* The game's texture as the server serves it (see deepslate.css); without the game's files only the colours. */
+	--page-background:
+		linear-gradient(#fbf4dd8c, #fbf4dd8c),
+		url('/mc/block/birch_planks.png') 0 0 / 64px 64px repeat,
+		var(--color-bg);
+	color-scheme: light;
+}

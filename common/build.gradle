@@ -1,0 +1,110 @@
+// Loader-independent code. Compiled against plain Minecraft (NeoForm) so it can't use Fabric or NeoForge APIs;
+// the loader projects compile these sources again into their own JARs.
+plugins {
+	id 'multiloader-common'
+	id 'net.neoforged.moddev'
+}
+
+neoForge {
+	enable {
+		neoFormVersion = neo_form_version
+		// Compile against Minecraft's own (unobfuscated) classes instead of decompiling and recompiling the game: that
+		// step needs an 8 GB heap and minutes, and only produced sources for the IDE (which decompiles on the fly).
+		disableRecompilation = true
+	}
+	// Puts Minecraft on the test classpath too, for the classes that touch its types.
+	addModdingDependenciesTo(sourceSets.test)
+}
+
+dependencies {
+	// Fabric and NeoForge both bundle this Mixin library, so it is only needed to compile.
+	// The older of the versions NeoForge and Fabric Loader ship (NeoForge 26.3.0.103: 0.17.4, Fabric Loader 0.20.1:
+	// 0.17.5), so the common code only uses what both have.
+	compileOnly('net.fabricmc:sponge-mixin:0.17.4+mixin.0.8.7')
+
+	testImplementation(platform('org.junit:junit-bom:6.1.3'))
+	testImplementation('org.junit.jupiter:junit-jupiter')
+	testRuntimeOnly('org.junit.platform:junit-platform-launcher')
+}
+
+// Unit and HTTP tests for the loader-independent code: ./gradlew :common:test
+tasks.named('test', Test) {
+	useJUnitPlatform()
+	// Minecraft's logging writes logs/ into the working folder; keep it out of the source tree.
+	def runDir = layout.buildDirectory.dir('test-run')
+	workingDir = runDir.get().asFile
+	doFirst { runDir.get().asFile.mkdirs() }
+	testLogging {
+		events 'failed'
+		exceptionFormat 'full'
+	}
+}
+
+configurations {
+	commonJava {
+		canBeResolved = false
+		canBeConsumed = true
+	}
+	commonResources {
+		canBeResolved = false
+		canBeConsumed = true
+	}
+}
+
+artifacts {
+	commonJava sourceSets.main.java.sourceDirectories.singleFile
+	commonResources sourceSets.main.resources.sourceDirectories.singleFile
+}
+
+// Implement mcgradleconventions loader attribute
+def loaderAttribute = Attribute.of('io.github.mcgradleconventions.loader', String)
+['apiElements', 'runtimeElements'].each { variant ->
+	configurations.named(variant) {
+		attributes {
+			attribute(loaderAttribute, 'common')
+		}
+	}
+}
+sourceSets.configureEach {
+	[it.compileClasspathConfigurationName, it.runtimeClasspathConfigurationName].each { variant ->
+		configurations.named(variant) {
+			attributes {
+				attribute(loaderAttribute, 'common')
+			}
+		}
+	}
+}
+
+// The game's files the web UI shows, fetched from Mojang and drawn as the mod does at server start (assets/), for
+// development: ./gradlew :common:extractGameAssets puts them in build/game-assets/mc (downloads in scripts/.cache).
+tasks.register('extractGameAssets', JavaExec) {
+	classpath = sourceSets.main.runtimeClasspath
+	mainClass = 'de.nr137.statswebuiplus.assets.GameAssetsTool'
+	// The game's logging writes logs/ into the working folder; keep it out of the source tree.
+	workingDir = layout.buildDirectory.dir('game-assets').get().asFile
+	doFirst { workingDir.mkdirs() }
+	// -PmaxAnimationFrames=100000: animated icons with a frame per game tick (to measure their size).
+	if (providers.gradleProperty('debugFaces').isPresent()) {
+		systemProperty 'stats.debugFaces', 'true'
+	}
+	// -PdumpBoxes=chest#main,...: the client JAR's model layer names and these layers' faces, next to the output.
+	if (providers.gradleProperty('dumpBoxes').isPresent()) {
+		systemProperty 'stats.dumpLayers', 'true'
+		systemProperty 'stats.dumpBoxes', providers.gradleProperty('dumpBoxes').get()
+	}
+	if (providers.gradleProperty('maxAnimationFrames').isPresent()) {
+		systemProperty 'stats.maxAnimationFrames', providers.gradleProperty('maxAnimationFrames').get()
+	}
+	args minecraft_version,
+		layout.buildDirectory.dir('game-assets/mc').get().asFile.path,
+		rootProject.file('scripts/.cache/game-assets').path
+}
+
+// Only the Minecraft client JAR, into scripts/.cache/game-assets/<version>/client.jar: the sample data and the smoke test
+// read the game's item and block lists from it.
+tasks.register('downloadClientJar', JavaExec) {
+	classpath = sourceSets.main.runtimeClasspath
+	mainClass = 'de.nr137.statswebuiplus.assets.GameAssetsTool'
+	args minecraft_version, '--download-only', rootProject.file('scripts/.cache/game-assets').path
+	outputs.file rootProject.file("scripts/.cache/game-assets/${minecraft_version}/client.jar")
+}

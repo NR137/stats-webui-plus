@@ -1,0 +1,4 @@
+/* The site's base styles and every theme. A new theme is one file under themes/ plus its entry in themes.ts. */
+@import './base.css';
+@import './themes/birch.css';
+@import './themes/deepslate.css';

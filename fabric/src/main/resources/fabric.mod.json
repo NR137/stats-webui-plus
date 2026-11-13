@@ -1,0 +1,32 @@
+{
+	"schemaVersion": 1,
+	"id": "${mod_id}",
+	"version": "${version}",
+	"name": "${mod_name}",
+	"description": "Live player statistics website and JSON API for Fabric servers. Inspired by mc-stats-webui by borrageiros (${inspired_by_homepage}). Not an official Minecraft product. Not approved by or associated with Mojang or Microsoft.",
+	"authors": [
+		"NR137"
+	],
+	"contact": {
+		"homepage": "${mod_homepage}",
+		"sources": "${mod_homepage}",
+		"issues": "${mod_homepage}/issues"
+	},
+	"license": "${license}",
+	"icon": "assets/${mod_id}/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"de.nr137.statswebuiplus.fabric.StatsWebuiPlusFabric"
+		]
+	},
+	"mixins": [
+		"${mod_id}.mixins.json"
+	],
+	"depends": {
+		"fabricloader": ">=${fabric_loader_version}",
+		"minecraft": "~${minecraft_version}",
+		"java": ">=${java_version}",
+		"fabric-api": "*"
+	}
+}

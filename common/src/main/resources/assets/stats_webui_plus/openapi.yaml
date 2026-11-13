@@ -1,0 +1,1163 @@
+openapi: 3.1.0
+info:
+  title: Stats WebUI Plus API
+  version: "2"
+  summary: The player statistics of a Minecraft server, as the mod's website reads them.
+  description: |
+    Read-only JSON API of the Stats WebUI Plus server mod (Fabric and NeoForge). The mod's web server answers it on
+    the same address and port as the website (`port` in `config/stats_webui_plus.json`, default 25580).
+
+    **IDs in paths** are written as on the website: the game's own things without `minecraft:` (`jump`,
+    `story/root`), other namespaces with a plain colon (`somemod:thing`, `somemod:quests/first`). The full form
+    (`minecraft:jump`) works too. Encode each path part once (`encodeURIComponent`); the server decodes it once, so
+    names with `+` or `%` work. In JSON, IDs are always full (`minecraft:jump`).
+
+    **Players** in a path are their name (the exact spelling first, else the first name that differs only in case)
+    or their UUID. In answers a player is `{"name", "uuid"}`.
+
+    **Numbers** are plain JSON numbers, rounded to 2 decimals (whole numbers without decimals), in the unit named
+    next to them; nothing is preformatted. **Times** are epoch milliseconds (UTC); unknown is `null`.
+
+    **Caching:** answers from the stats bring them up to date first (at most once per `refreshCooldownMs`) and say
+    `Cache-Control: public, max-age=<seconds until the next refresh>` (`no-store` when `refreshCooldownMs` is 0).
+    `/api`, `/api/health` and `/api/status` are `no-store`, pages and this file `no-cache`. Every JSON answer has an
+    `ETag`; a request with a matching `If-None-Match` gets an empty `304`. Errors are never cached.
+
+    **Compression:** with `Accept-Encoding: gzip`, answers of 1 KB or more come gzipped (`Content-Encoding: gzip`,
+    `Vary: Accept-Encoding`).
+
+    Only `GET` and `HEAD` are answered; a trailing `/` is ignored.
+  license:
+    name: MIT
+    identifier: MIT
+servers:
+  - url: http://localhost:25580
+    description: A server with the default port
+tags:
+  - name: server
+    description: The mod and the server, without the stats
+  - name: players
+  - name: leaderboards
+  - name: statistics
+    description: The game's own statistics
+  - name: advancements
+paths:
+  /api:
+    get:
+      tags: [server]
+      operationId: index
+      summary: The mod, its version and every endpoint
+      description: Never cached; doesn't refresh the stats.
+      responses:
+        "200":
+          description: The API's index
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Index" }
+        "304": { $ref: "#/components/responses/NotModified" }
+        "405": { $ref: "#/components/responses/MethodNotAllowed" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+  /api/health:
+    get:
+      tags: [server]
+      operationId: health
+      summary: Whether the web server answers
+      description: Never cached; doesn't refresh the stats and never waits for the server thread.
+      responses:
+        "200":
+          description: The web server runs
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Health" }
+        "304": { $ref: "#/components/responses/NotModified" }
+        "405": { $ref: "#/components/responses/MethodNotAllowed" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+  /api/openapi.yaml:
+    get:
+      tags: [server]
+      operationId: openapi
+      summary: This description
+      description: "`no-cache` with an ETag."
+      responses:
+        "200":
+          description: The OpenAPI 3.1 description of the API
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/yaml:
+              schema:
+                type: string
+        "304": { $ref: "#/components/responses/NotModified" }
+        "404":
+          description: The mod JAR has no API description (`not_found`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "405": { $ref: "#/components/responses/MethodNotAllowed" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+  /api/status:
+    get:
+      tags: [server]
+      operationId: status
+      summary: What every page needs besides the stats
+      description: |
+        The config's branding, links and pages, and the server's state. Built from the players known now, without
+        refreshing the stats; never cached.
+      responses:
+        "200":
+          description: The server's state and the website's settings
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Status" }
+        "304": { $ref: "#/components/responses/NotModified" }
+        "405": { $ref: "#/components/responses/MethodNotAllowed" }
+        "500": { $ref: "#/components/responses/InternalError" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+  /api/pages/{id}:
+    get:
+      tags: [server]
+      operationId: page
+      summary: A configured page (imprint, rules, ...) in the visitor's language
+      description: |
+        The text of a page from the config's `pages`, read from `config/stats_webui_plus/pages/<id>/` on every
+        request (`no-cache` with an ETag), so an edit shows on the next visit. The language is the first of `lang`
+        that has a file, else the server's default language, else English, else the file for every language
+        (`page.md`), else any other file. Doesn't refresh the stats.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The page's ID in the config
+          schema:
+            type: string
+          example: imprint
+        - name: lang
+          in: query
+          required: false
+          description: The visitor's languages in order, comma-separated
+          schema:
+            type: string
+          example: it,de,en
+      responses:
+        "200":
+          description: The page's text
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Page" }
+        "304": { $ref: "#/components/responses/NotModified" }
+        "404":
+          description: No such page, or it has no readable text (`not_found`, "Unknown page")
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "405": { $ref: "#/components/responses/MethodNotAllowed" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+  /api/players:
+    get:
+      tags: [players]
+      operationId: players
+      summary: Every player
+      description: Most play time first, then by name (case-insensitive).
+      responses:
+        "200":
+          description: The players
+          headers:
+            Cache-Control: { $ref: "#/components/headers/StatsCacheControl" }
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlayerList" }
+        "304": { $ref: "#/components/responses/NotModified" }
+        "405": { $ref: "#/components/responses/MethodNotAllowed" }
+        "500": { $ref: "#/components/responses/InternalError" }
+        "503": { $ref: "#/components/responses/BusyOrUnavailable" }
+  /api/players/{player}:
+    get:
+      tags: [players]
+      operationId: player
+      summary: One player's page
+      parameters:
+        - $ref: "#/components/parameters/Player"
+      responses:
+        "200":
+          description: The player
+          headers:
+            Cache-Control: { $ref: "#/components/headers/StatsCacheControl" }
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Player" }
+        "304": { $ref: "#/components/responses/NotModified" }
+        "404":
+          description: Unknown player (`not_found`, "Player not found")
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "405": { $ref: "#/components/responses/MethodNotAllowed" }
+        "500": { $ref: "#/components/responses/InternalError" }
+        "503": { $ref: "#/components/responses/BusyOrUnavailable" }
+  /api/players/{player}/advancements/{advancement}:
+    get:
+      tags: [players, advancements]
+      operationId: playerAdvancement
+      summary: One advancement for one player, with its criteria
+      parameters:
+        - $ref: "#/components/parameters/Player"
+        - $ref: "#/components/parameters/Advancement"
+      responses:
+        "200":
+          description: The advancement and the player's progress on it
+          headers:
+            Cache-Control: { $ref: "#/components/headers/StatsCacheControl" }
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlayerAdvancement" }
+        "304": { $ref: "#/components/responses/NotModified" }
+        "404":
+          description: Unknown player ("Player not found") or advancement ("Unknown advancement"), both `not_found`
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "405": { $ref: "#/components/responses/MethodNotAllowed" }
+        "500": { $ref: "#/components/responses/InternalError" }
+        "503": { $ref: "#/components/responses/BusyOrUnavailable" }
+  /api/rankings:
+    get:
+      tags: [leaderboards]
+      operationId: rankings
+      summary: First place on the boards legends, veterans and grinders
+      description: |
+        Each ranking's leader is the player with the highest value above 0 on its board (on a tie less play time, then the
+        name, case-insensitive), or null when nobody has a value above 0.
+      responses:
+        "200":
+          description: The three rankings
+          headers:
+            Cache-Control: { $ref: "#/components/headers/StatsCacheControl" }
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Rankings" }
+        "304": { $ref: "#/components/responses/NotModified" }
+        "405": { $ref: "#/components/responses/MethodNotAllowed" }
+        "500": { $ref: "#/components/responses/InternalError" }
+        "503": { $ref: "#/components/responses/BusyOrUnavailable" }
+  /api/leaderboards:
+    get:
+      tags: [leaderboards]
+      operationId: leaderboards
+      summary: Every board, and the categories of the leaderboards page
+      responses:
+        "200":
+          description: The boards
+          headers:
+            Cache-Control: { $ref: "#/components/headers/StatsCacheControl" }
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Leaderboards" }
+        "304": { $ref: "#/components/responses/NotModified" }
+        "405": { $ref: "#/components/responses/MethodNotAllowed" }
+        "500": { $ref: "#/components/responses/InternalError" }
+        "503": { $ref: "#/components/responses/BusyOrUnavailable" }
+  /api/leaderboards/{id}:
+    get:
+      tags: [leaderboards]
+      operationId: leaderboard
+      summary: One board with its players
+      description: |
+        Sorted and ranked as described at `Entry`; without players whose value is 0 or less, except on `legends`,
+        which lists everyone. The game's statistics have boards of their own under `/api/stats/{group}/{statistic}`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: A board ID from `/api/leaderboards`
+          schema:
+            type: string
+          example: diamonds-mined
+      responses:
+        "200":
+          description: The board
+          headers:
+            Cache-Control: { $ref: "#/components/headers/StatsCacheControl" }
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Leaderboard" }
+        "304": { $ref: "#/components/responses/NotModified" }
+        "404":
+          description: Unknown board (`not_found`, "Unknown leaderboard")
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "405": { $ref: "#/components/responses/MethodNotAllowed" }
+        "500": { $ref: "#/components/responses/InternalError" }
+        "503": { $ref: "#/components/responses/BusyOrUnavailable" }
+  /api/stats:
+    get:
+      tags: [statistics]
+      operationId: stats
+      summary: Every statistic the statistics page lists, with its leader
+      description: |
+        Groups in the order custom, killed, killed_by, mined, crafted, used, broken, picked_up, dropped; in each, the
+        statistics the server lists plus any a player has, sorted by ID.
+      responses:
+        "200":
+          description: The statistics
+          headers:
+            Cache-Control: { $ref: "#/components/headers/StatsCacheControl" }
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StatisticsOverview" }
+        "304": { $ref: "#/components/responses/NotModified" }
+        "405": { $ref: "#/components/responses/MethodNotAllowed" }
+        "500": { $ref: "#/components/responses/InternalError" }
+        "503": { $ref: "#/components/responses/BusyOrUnavailable" }
+  /api/stats/{group}/{statistic}:
+    get:
+      tags: [statistics]
+      operationId: statistic
+      summary: The board of one of the game's statistics
+      parameters:
+        - name: group
+          in: path
+          required: true
+          schema: { $ref: "#/components/schemas/StatisticGroup" }
+          example: mined
+        - name: statistic
+          in: path
+          required: true
+          description: The statistic's ID in the path form (`stone`, `somemod:ore`)
+          schema:
+            type: string
+          example: stone
+      responses:
+        "200":
+          description: The board
+          headers:
+            Cache-Control: { $ref: "#/components/headers/StatsCacheControl" }
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StatisticBoard" }
+        "304": { $ref: "#/components/responses/NotModified" }
+        "404":
+          description: |
+            The group isn't one of the nine or the statistic isn't in its list (`not_found`, "Unknown statistic");
+            a group without a statistic is `not_found` "Unknown endpoint"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "405": { $ref: "#/components/responses/MethodNotAllowed" }
+        "500": { $ref: "#/components/responses/InternalError" }
+        "503": { $ref: "#/components/responses/BusyOrUnavailable" }
+  /api/advancements:
+    get:
+      tags: [advancements]
+      operationId: advancements
+      summary: Every advancement the server shows, in tabs
+      description: |
+        By tab (story, nether, end, adventure, husbandry, then others), title and ID; data packs' advancements
+        included.
+      responses:
+        "200":
+          description: The advancements
+          headers:
+            Cache-Control: { $ref: "#/components/headers/StatsCacheControl" }
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdvancementList" }
+        "304": { $ref: "#/components/responses/NotModified" }
+        "405": { $ref: "#/components/responses/MethodNotAllowed" }
+        "500": { $ref: "#/components/responses/InternalError" }
+        "503": { $ref: "#/components/responses/BusyOrUnavailable" }
+  /api/advancements/most:
+    get:
+      tags: [advancements, leaderboards]
+      operationId: mostAdvancements
+      summary: The board of the most advancements
+      description: The same as `/api/leaderboards/advancements`.
+      responses:
+        "200":
+          description: The board
+          headers:
+            Cache-Control: { $ref: "#/components/headers/StatsCacheControl" }
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Leaderboard" }
+        "304": { $ref: "#/components/responses/NotModified" }
+        "405": { $ref: "#/components/responses/MethodNotAllowed" }
+        "500": { $ref: "#/components/responses/InternalError" }
+        "503": { $ref: "#/components/responses/BusyOrUnavailable" }
+  /api/advancements/{advancement}:
+    get:
+      tags: [advancements]
+      operationId: advancement
+      summary: One advancement and everyone who has it
+      parameters:
+        - $ref: "#/components/parameters/Advancement"
+      responses:
+        "200":
+          description: The advancement
+          headers:
+            Cache-Control: { $ref: "#/components/headers/StatsCacheControl" }
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdvancementDetail" }
+        "304": { $ref: "#/components/responses/NotModified" }
+        "404":
+          description: Unknown advancement (`not_found`, "Unknown advancement")
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "405": { $ref: "#/components/responses/MethodNotAllowed" }
+        "500": { $ref: "#/components/responses/InternalError" }
+        "503": { $ref: "#/components/responses/BusyOrUnavailable" }
+components:
+  parameters:
+    Player:
+      name: player
+      in: path
+      required: true
+      description: The player's name (exact spelling first, else the first case-insensitive match) or UUID
+      schema:
+        type: string
+      example: Steve
+    Advancement:
+      name: advancement
+      in: path
+      required: true
+      description: The advancement's ID in the path form; may contain `/`
+      schema:
+        type: string
+      examples:
+        vanilla:
+          value: story/mine_stone
+        modded:
+          value: somemod:quests/first
+  headers:
+    ETag:
+      description: '`"<crc32 hex>-<length hex>"` of the uncompressed body; send it back in `If-None-Match`'
+      schema:
+        type: string
+    StatsCacheControl:
+      description: |
+        `public, max-age=<seconds>` until the next refresh of the stats would happen anyway (the cooldown minus the
+        stats' age, rounded down, at least 0); `no-store` when `refreshCooldownMs` is 0
+      schema:
+        type: string
+    RetryAfter:
+      description: Seconds to wait before asking again
+      schema:
+        type: integer
+        const: 5
+  responses:
+    NotModified:
+      description: The browser's copy (`If-None-Match`) is current; no body
+    MethodNotAllowed:
+      description: Anything but GET and HEAD (`method_not_allowed`, "Use GET")
+      headers:
+        Allow:
+          schema:
+            type: string
+            const: GET, HEAD
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    InternalError:
+      description: Something failed in the mod (`internal_error`); the server log has the details
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Unavailable:
+      description: The Minecraft server isn't running (yet) (`unavailable`, "Minecraft server is not ready")
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    BusyOrUnavailable:
+      description: |
+        The server thread didn't hand over the stats within 5 seconds, a lag spike (`busy`, "The Minecraft server is
+        busy, try again in a moment", with `Retry-After: 5`), or the Minecraft server isn't running (`unavailable`)
+      headers:
+        Retry-After: { $ref: "#/components/headers/RetryAfter" }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+  schemas:
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+          enum: [not_found, method_not_allowed, busy, unavailable, internal_error, bad_request]
+          description: "`bad_request` is reserved; this version of the API sends none"
+        message:
+          type: string
+          description: For people; don't match on it
+    Id:
+      type: string
+      description: A full ID, `namespace:path`
+      examples: ["minecraft:jump", "minecraft:story/mine_stone"]
+    Uuid:
+      type: string
+      format: uuid
+    Time:
+      type: [integer, "null"]
+      description: Epoch milliseconds (UTC); null when unknown
+      examples: [1784418248000]
+    Unit:
+      type: string
+      description: |
+        The unit of a value: `level` (the ranking level), `skill` (a skill's value, 100 = very good, open-ended),
+        `hours`, `km`, `km_per_hour`, `hearts`, `count`, `kills`, `blocks`, `mob_types`, `kills_per_hour`,
+        `deaths_per_hour`, `actions_per_hour`, `ratio`
+      enum: [level, skill, hours, km, km_per_hour, hearts, count, kills, blocks, mob_types, kills_per_hour,
+        deaths_per_hour, actions_per_hour, ratio]
+    StatisticGroup:
+      type: string
+      enum: [custom, killed, killed_by, mined, crafted, used, broken, picked_up, dropped]
+    StatisticUnit:
+      type: string
+      description: |
+        In `custom`: IDs ending in `_one_cm` are `km` (cm / 100 000), IDs containing `damage_` are `hearts`
+        (damage / 20), IDs ending in `_time` or starting with `minecraft:time_since_` are `hours` (ticks / 72 000);
+        everything else, and every other group, is `count` (the raw value)
+      enum: [km, hearts, hours, count]
+    Value:
+      type: number
+      description: Rounded to 2 decimals, in the unit next to it
+    PlayerRef:
+      type: object
+      required: [name, uuid]
+      properties:
+        name:
+          type: string
+        uuid: { $ref: "#/components/schemas/Uuid" }
+    Identity:
+      type: object
+      required: [mod, version, minecraft]
+      properties:
+        mod:
+          type: string
+          const: stats_webui_plus
+        version:
+          type: string
+          description: The mod's version
+          examples: ["2.0.1"]
+        minecraft:
+          type: string
+          description: The Minecraft version
+          examples: ["26.3"]
+    Index:
+      allOf:
+        - $ref: "#/components/schemas/Identity"
+        - type: object
+          required: [apiVersion, documentation, endpoints]
+          properties:
+            apiVersion:
+              type: integer
+              const: 2
+            documentation:
+              type: string
+              const: /api/openapi.yaml
+            endpoints:
+              type: object
+              description: Every endpoint by name, as a path pattern
+              additionalProperties:
+                type: string
+              example:
+                index: /api
+                health: /api/health
+                openapi: /api/openapi.yaml
+                status: /api/status
+                page: /api/pages/{id}
+                players: /api/players
+                player: /api/players/{player}
+                playerAdvancement: /api/players/{player}/advancements/{advancement}
+                rankings: /api/rankings
+                leaderboards: /api/leaderboards
+                leaderboard: /api/leaderboards/{id}
+                stats: /api/stats
+                statistic: /api/stats/{group}/{statistic}
+                advancements: /api/advancements
+                mostAdvancements: /api/advancements/most
+                advancement: /api/advancements/{advancement}
+    Health:
+      allOf:
+        - type: object
+          required: [ok]
+          properties:
+            ok:
+              type: boolean
+              const: true
+        - $ref: "#/components/schemas/Identity"
+    LocalizedText:
+      description: 'A text, or a text per language code (`{"en": "...", "de": "..."}`)'
+      oneOf:
+        - type: string
+        - type: object
+          additionalProperties:
+            type: string
+    Status:
+      type: object
+      required: [trackedPlayers, nameClashes, onlinePlayers, maxPlayers, branding, headerImage, languages, links, pages,
+        defaultLanguage, gameAssets]
+      properties:
+        trackedPlayers:
+          type: integer
+          description: How many players the stats know
+        nameClashes:
+          type: array
+          description: Names (lower case) that more than one player has, sorted
+          items:
+            type: string
+        onlinePlayers:
+          type: integer
+        maxPlayers:
+          type: integer
+        branding:
+          type: object
+          description: The look of the website, from the config
+          properties:
+            windowTitle: { $ref: "#/components/schemas/LocalizedText" }
+            headerImagePosition:
+              type: string
+              enum: [top, between, bottom]
+            siteHeading: { $ref: "#/components/schemas/LocalizedText" }
+            siteHeadingSlogan: { $ref: "#/components/schemas/LocalizedText" }
+            siteHeadingFont:
+              type: string
+              enum: [blocky, gothic, custom]
+            siteHeadingSloganStyle:
+              type: string
+              enum: [line, plate, above, ribbon, quote]
+            pageTitleFont:
+              type: string
+              enum: [tiny, blocky, minecraft]
+            avatarPose:
+              type: string
+              enum: [idle, walk, run, fly]
+            avatarAngle:
+              type: number
+            avatarRotate:
+              type: boolean
+            statusBar:
+              type: boolean
+            serverAddress:
+              type: string
+        headerImage:
+          type: [string, "null"]
+          description: The header image's address (changes with the file), or null for none
+          examples: ["/header-image?v=1784418248000"]
+        customFont:
+          description: The server's own font for the site heading (siteHeadingFont "custom"), or null when not used
+          oneOf:
+            - type: "null"
+            - type: object
+              required: [name, license, licenseText, sources]
+              properties:
+                name:
+                  type: string
+                license: { $ref: "#/components/schemas/LocalizedText" }
+                licenseText:
+                  type: [string, "null"]
+                  description: The address of the font's license text (plain text, changes with the file), or null
+                  examples: ["/heading-font/license?v=1784418248000"]
+                sources:
+                  type: array
+                  description: The font's files that exist, best first; an address changes with its file
+                  items:
+                    type: object
+                    required: [url, format]
+                    properties:
+                      url:
+                        type: string
+                        examples: ["/heading-font/0?v=1784418248000"]
+                      format:
+                        type: string
+                        enum: [woff2, woff, truetype, opentype]
+        languages:
+          type: array
+          description: The languages the website offers
+          items:
+            type: string
+        links:
+          type: array
+          description: The menu's links from the config
+          items:
+            type: object
+            required: [label, url, newTab, place, icon]
+            properties:
+              label: { $ref: "#/components/schemas/LocalizedText" }
+              url:
+                type: string
+              newTab:
+                type: boolean
+              place:
+                type: string
+                description: "main: an entry of the top menu; menu: a button in the row below it"
+                enum: [main, menu]
+              icon:
+                type: string
+                description: A game item ID, the entry's icon in the top menu
+                examples: ["minecraft:filled_map"]
+        pages:
+          type: array
+          description: The configured pages that have a text (for `/api/pages/{id}`)
+          items:
+            type: object
+            required: [id, label, place, enabled, icon]
+            properties:
+              id:
+                type: string
+              label: { $ref: "#/components/schemas/LocalizedText" }
+              place:
+                type: string
+                description: "main: an entry of the top menu; menu: a button below it; footer: a link in the footer"
+                enum: [main, menu, footer]
+              enabled:
+                type: boolean
+              icon:
+                type: string
+                description: A game item ID, the entry's icon in the top menu
+                examples: ["minecraft:oak_door"]
+        startPage:
+          type: [string, "null"]
+          description: >-
+            The id of the page that is the website's start page (/, with the ranking at /ranking), or null for the
+            ranking
+        defaultLanguage:
+          type: string
+        gameAssets:
+          type: string
+          description: The game's textures and texts for the website
+          enum: [ready, preparing, failed, disabled]
+    Page:
+      type: object
+      description: The page's config entry, and its text
+      required: [id, format, content]
+      properties:
+        id:
+          type: string
+        language:
+          type: [string, "null"]
+          description: The text's language; null for the file for every language
+        format:
+          type: string
+          enum: [markdown, html, text]
+        content:
+          type: string
+      additionalProperties: true
+    PlayerList:
+      type: object
+      required: [players]
+      properties:
+        players:
+          type: array
+          items:
+            allOf:
+              - $ref: "#/components/schemas/PlayerRef"
+              - type: object
+                required: [playHours, level, actionsPerHour, advancements]
+                properties:
+                  playHours:
+                    type: number
+                    description: hours
+                  level:
+                    type: number
+                    description: level
+                  actionsPerHour:
+                    type: number
+                    description: actions_per_hour
+                  advancements:
+                    $ref: "#/components/schemas/Progress"
+    Progress:
+      type: object
+      required: [done, total]
+      properties:
+        done:
+          type: integer
+        total:
+          type: integer
+    Player:
+      allOf:
+        - $ref: "#/components/schemas/PlayerRef"
+        - type: object
+          required: [online, firstJoin, firstJoinEstimated, lastLogout, lastLogoutEstimated, playHours, level,
+            levelRank, actionsPerHour, trackedPlayers, sameName, skills, boards, statistics, advancements]
+          properties:
+            online:
+              type: boolean
+            firstJoin: { $ref: "#/components/schemas/Time" }
+            firstJoinEstimated:
+              type: boolean
+              description: True when the time is worked out from the game's files, not recorded at the join
+            lastLogout: { $ref: "#/components/schemas/Time" }
+            lastLogoutEstimated:
+              type: boolean
+            playHours:
+              type: number
+              description: hours
+            level:
+              type: number
+              description: level
+            levelRank:
+              type: integer
+              description: The rank on the board `legends`
+            actionsPerHour:
+              type: number
+              description: actions_per_hour
+            trackedPlayers:
+              type: integer
+              description: How many players there are (what the ranks are out of)
+            sameName:
+              type: array
+              description: Other players whose name equals this one, ignoring case
+              items: { $ref: "#/components/schemas/PlayerRef" }
+            skills:
+              type: object
+              description: Each skill by ID (milestones, combat, exploration, mining, building, farming, survival), in that order
+              additionalProperties: { $ref: "#/components/schemas/Skill" }
+            boards:
+              type: object
+              description: Every board of `/api/leaderboards` by ID, in that order
+              additionalProperties: { $ref: "#/components/schemas/PlayerBoard" }
+            statistics:
+              type: object
+              description: |
+                Per group (in the order of `/api/stats`), the statistics whose raw value isn't 0, by full ID, in the
+                order of `/api/stats`. The others are 0: fill them in from `/api/stats`.
+              propertyNames: { $ref: "#/components/schemas/StatisticGroup" }
+              additionalProperties:
+                type: object
+                additionalProperties: { $ref: "#/components/schemas/PlayerStatistic" }
+            advancements: { $ref: "#/components/schemas/PlayerAdvancements" }
+    Skill:
+      type: object
+      required: [value, parts]
+      properties:
+        value:
+          type: number
+          description: skill (100 = very good, open-ended)
+        parts:
+          type: array
+          items:
+            type: object
+            required: [id, value, target, weight, score]
+            properties:
+              id:
+                type: string
+              value:
+                type: number
+                description: The raw value (a count, km, types, ...)
+              target:
+                type: number
+                description: The value that gives a score of 100
+              weight:
+                type: number
+                description: The part's share of the skill (the shares add up to 1)
+              score:
+                type: number
+                description: The part's value, 100 at the target
+    PlayerBoard:
+      type: object
+      required: [value, unit, category, rank]
+      properties:
+        value: { $ref: "#/components/schemas/Value" }
+        unit: { $ref: "#/components/schemas/Unit" }
+        category:
+          type: string
+        rank:
+          type: integer
+          description: The player's place on the board (one more than the players before them)
+    PlayerStatistic:
+      type: object
+      required: [value, unit, rank]
+      properties:
+        value: { $ref: "#/components/schemas/Value" }
+        unit: { $ref: "#/components/schemas/StatisticUnit" }
+        rank:
+          type: integer
+          description: One more than the number of players with a higher raw value; equal values share a rank
+    PlayerAdvancements:
+      type: object
+      required: [done, total, rank, completed, progress]
+      properties:
+        done:
+          type: integer
+        total:
+          type: integer
+          description: How many advancements the server shows
+        rank:
+          type: integer
+          description: The rank on the board `advancements`
+        completed:
+          type: object
+          description: |
+            Every done advancement with its completion time, in the order of `/api/advancements`; ones the server
+            doesn't show after them, by ID
+          additionalProperties: { $ref: "#/components/schemas/Time" }
+        progress:
+          type: object
+          description: |
+            Every shown advancement the player hasn't done that has at least two requirements: how many are met
+          additionalProperties: { $ref: "#/components/schemas/Progress" }
+    RankingLeader:
+      type: [object, "null"]
+      required: [name, uuid, value, unit]
+      properties:
+        name:
+          type: string
+        uuid: { $ref: "#/components/schemas/Uuid" }
+        value: { $ref: "#/components/schemas/Value" }
+        unit:
+          type: string
+          enum: [level, hours, actions_per_hour]
+    Rankings:
+      type: object
+      required: [legends, veterans, grinders]
+      properties:
+        legends: { $ref: "#/components/schemas/RankingLeader" }
+        veterans: { $ref: "#/components/schemas/RankingLeader" }
+        grinders: { $ref: "#/components/schemas/RankingLeader" }
+    Board:
+      type: object
+      required: [id, category, unit, icon, listed, compare, lowerWins]
+      properties:
+        id:
+          type: string
+          examples: [legends, skill-mining, diamonds-mined]
+        category:
+          type: string
+          examples: [rankings, skills, advancements, life, exploration, mining, combat, totals]
+        unit: { $ref: "#/components/schemas/Unit" }
+        icon:
+          type: string
+          description: An item ID (`minecraft:beacon`) or one of the website's own icons (`special:kills-per-hour`)
+        listed:
+          type: boolean
+          description: Whether the leaderboards page lists it
+        compare:
+          type: boolean
+          description: Whether it is a row on the compare page
+        lowerWins:
+          type: boolean
+          description: Whether fewer wins on the compare page; the board itself lists the highest value first too
+    Leaderboards:
+      type: object
+      required: [categories, boards]
+      properties:
+        categories:
+          type: array
+          description: The categories of the leaderboards page in order, with the IDs of their listed boards
+          items:
+            type: object
+            required: [id, icon, boards]
+            properties:
+              id:
+                type: string
+              icon:
+                type: string
+              boards:
+                type: array
+                items:
+                  type: string
+        boards:
+          type: array
+          description: Every board, in the website's order
+          items: { $ref: "#/components/schemas/Board" }
+    Entry:
+      description: |
+        A place on a board. Sorted by value, the highest first (also where `lowerWins`), on a tie whoever has less
+        play time, then by name (case-insensitive); equal values get different ranks, as listed.
+      allOf:
+        - type: object
+          required: [rank]
+          properties:
+            rank:
+              type: integer
+        - $ref: "#/components/schemas/PlayerRef"
+        - type: object
+          required: [value]
+          properties:
+            value: { $ref: "#/components/schemas/Value" }
+    Leaderboard:
+      type: object
+      required: [id, category, unit, icon, lowerWins, entries]
+      properties:
+        id:
+          type: string
+        category:
+          type: string
+        unit: { $ref: "#/components/schemas/Unit" }
+        icon:
+          type: string
+        lowerWins:
+          type: boolean
+        parts:
+          type: object
+          description: What the board adds up, group -> full statistic IDs; left out for a board of no combined statistics
+          propertyNames: { $ref: "#/components/schemas/StatisticGroup" }
+          additionalProperties:
+            type: array
+            items: { $ref: "#/components/schemas/Id" }
+        entries:
+          type: array
+          items: { $ref: "#/components/schemas/Entry" }
+    StatisticsOverview:
+      type: object
+      required: [groups]
+      properties:
+        groups:
+          type: object
+          propertyNames: { $ref: "#/components/schemas/StatisticGroup" }
+          additionalProperties:
+            type: array
+            items:
+              type: object
+              required: [id]
+              properties:
+                id: { $ref: "#/components/schemas/Id" }
+                unit:
+                  description: The statistic's unit; left out when it is `count` (most statistics)
+                  allOf:
+                    - $ref: "#/components/schemas/StatisticUnit"
+                leader:
+                  description: First place on the statistic's board; left out when nobody has it
+                  allOf:
+                    - $ref: "#/components/schemas/PlayerRef"
+                    - type: object
+                      required: [value]
+                      properties:
+                        value: { $ref: "#/components/schemas/Value" }
+    StatisticBoard:
+      type: object
+      required: [group, id, unit, entries]
+      properties:
+        group: { $ref: "#/components/schemas/StatisticGroup" }
+        id: { $ref: "#/components/schemas/Id" }
+        unit: { $ref: "#/components/schemas/StatisticUnit" }
+        entries:
+          type: array
+          description: Without players whose value is 0 or less
+          items: { $ref: "#/components/schemas/Entry" }
+    Tab:
+      type: object
+      required: [id, title, icon, background]
+      properties:
+        id:
+          type: string
+          examples: [story]
+        title:
+          type: string
+        icon: { $ref: "#/components/schemas/Id" }
+        background:
+          type: [string, "null"]
+          description: The game's background texture's name (`stone`, `nether`, ...), or null for another one
+    Advancement:
+      type: object
+      required: [id, tab, title, description, icon, frame, hidden, experience, parent, x, y, holders]
+      properties:
+        id: { $ref: "#/components/schemas/Id" }
+        tab:
+          type: string
+        title:
+          type: string
+          description: Plain text in the server's language
+        description:
+          type: string
+        icon: { $ref: "#/components/schemas/Id" }
+        frame:
+          type: string
+          enum: [task, goal, challenge]
+        hidden:
+          type: boolean
+        experience:
+          type: integer
+          description: The experience points it rewards
+        parent:
+          description: The nearest shown ancestor; null for a tab's root
+          oneOf:
+            - $ref: "#/components/schemas/Id"
+            - type: "null"
+        x:
+          type: number
+          description: Column in the game's advancement tree
+        y:
+          type: number
+          description: Row in the game's advancement tree
+        holders:
+          type: integer
+          description: How many players have it
+    AdvancementList:
+      type: object
+      required: [total, tabs, advancements]
+      properties:
+        total:
+          type: integer
+        tabs:
+          type: array
+          items: { $ref: "#/components/schemas/Tab" }
+        advancements:
+          type: array
+          items: { $ref: "#/components/schemas/Advancement" }
+    AdvancementDetail:
+      allOf:
+        - $ref: "#/components/schemas/Advancement"
+        - type: object
+          required: [entries]
+          properties:
+            entries:
+              type: array
+              description: Everyone who has it, earliest first (unknown times last), then by name (case-insensitive)
+              items:
+                type: object
+                required: [rank, name, uuid, completedAt]
+                properties:
+                  rank:
+                    type: integer
+                  name:
+                    type: string
+                  uuid: { $ref: "#/components/schemas/Uuid" }
+                  completedAt: { $ref: "#/components/schemas/Time" }
+    PlayerAdvancement:
+      allOf:
+        - $ref: "#/components/schemas/Advancement"
+        - type: object
+          required: [player, done, completedAt, requirements]
+          properties:
+            player: { $ref: "#/components/schemas/PlayerRef" }
+            done:
+              type: boolean
+            completedAt: { $ref: "#/components/schemas/Time" }
+            requirements:
+              type: array
+              description: |
+                The requirements as the game keeps them: each a list of criteria, any of which meets it. If the
+                server has none for this advancement, each criterion the player has a time for is a requirement of
+                its own. A requirement of one criterion of a done advancement without any criteria times has the
+                advancement's completion time.
+              items:
+                type: array
+                items:
+                  type: object
+                  required: [criterion, at]
+                  properties:
+                    criterion:
+                      type: string
+                    at: { $ref: "#/components/schemas/Time" }
