@@ -41,7 +41,8 @@ def numbers(version: str) -> tuple:
 
 
 def stable(version: str) -> bool:
-	return not re.search(r'(alpha|beta|rc|pre|snapshot|-SNAPSHOT)', version, re.IGNORECASE)
+	# Pre-releases: alpha, beta, release candidates, previews, snapshots and milestones (JUnit's 6.2.0-M1).
+	return not re.search(r'(alpha|beta|rc|pre|snapshot|[-.]M\d+\b)', version, re.IGNORECASE)
 
 
 def newest(versions) -> str:
