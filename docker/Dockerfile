@@ -4,7 +4,7 @@
 FROM ubuntu:26.04
 
 # mise installs the tools listed in .tool-versions.
-ARG MISE_VERSION=v2026.11.8
+ARG MISE_VERSION=v2026.11.9
 # Corepack starts the Yarn version web/package.json names; Node no longer comes with it since version 25.
 ARG COREPACK_VERSION=0.36.0
 # The container user gets the host user's IDs, so files it writes into the checkout belong to you.
